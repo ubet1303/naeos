@@ -73,23 +73,6 @@ flowchart TB
     AdapterLayer --> MultipleOutputs
 ```
 
-```
-Knowledge
-    │
-    ▼
-Specification
-    │
-    ▼
-Compiler
-    │
-    ├──→ Default Engine (Go boilerplate)
-    │
-    └──→ Adapter Layer (Go, TypeScript, Python, Java, Rust)
-            │
-            ▼
-        Multiple Outputs
-```
-
 Compiler bukan translator. Compiler adalah **knowledge transformation engine**.
 
 Dengan adanya Adapter Layer, Compiler menjadi **polyglot generator** — satu spesifikasi menghasilkan artefak dalam banyak bahasa pemrograman secara bersamaan.
@@ -116,51 +99,6 @@ graph TB
         AdapterLayer --> CombinedArtifacts
         CombinedArtifacts --> Reviewer
     end
-```
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    NAEOS Pipeline                        │
-│                                                         │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐ │
-│  │  Parser   │→│Normalizer │→│ Resolver  │→│ Builder│ │
-│  └──────────┘  └──────────┘  └──────────┘  └────────┘ │
-│                                                     │   │
-│                                                     ▼   │
-│                                               ┌────────┐│
-│                                               │  NEIR  ││
-│                                               └────────┘│
-│                                                     │   │
-│                    ┌────────────────────────────────┤   │
-│                    │                                │   │
-│              ┌─────▼──────┐              ┌─────────▼──┐│
-│              │  Validator  │              │  Scheduler ││
-│              └────────────┘              └────────────┘│
-│                    │                                │   │
-│                    ▼                                ▼   │
-│  ┌──────────────────────┐  ┌─────────────────────────┐│
-│  │  DefaultEngine       │  │  Adapter Layer          ││
-│  │  (Go boilerplate)    │  │  (multi-language)       ││
-│  │  - README.md         │  │  - GoAdapter            ││
-│  │  - Dockerfile        │  │  - TypeScriptAdapter    ││
-│  │  - .github/ci.yml    │  │  - PythonAdapter        ││
-│  │  - go.mod            │  │  - JavaAdapter          ││
-│  │  - cmd/app/main.go   │  │  - RustAdapter          ││
-│  │  - module/*          │  │  - (extensible)         ││
-│  │  - service/*         │  │                         ││
-│  └──────────┬───────────┘  └────────────┬────────────┘│
-│             │                           │              │
-│             └───────────┬───────────────┘              │
-│                         ▼                              │
-│                  ┌─────────────┐                       │
-│                  │ []Artifact  │                       │
-│                  │ (combined)  │                       │
-│                  └─────────────┘                       │
-│                         │                              │
-│                    ┌────▼─────┐                        │
-│                    │ Reviewer │                        │
-│                    └──────────┘                        │
-└─────────────────────────────────────────────────────────┘
 ```
 
 ## 4. Compilation Pipeline
