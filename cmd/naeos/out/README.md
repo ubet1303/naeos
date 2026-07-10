@@ -11,5 +11,5 @@ go run ./cmd/app
 ## Test
 
 ```bash
-go test ./...
+Go test ./...
 ```

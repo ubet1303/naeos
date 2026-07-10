@@ -1,46 +1,187 @@
 # Contributing to NAEOS
 
-Terima kasih telah tertarik untuk berkontribusi pada proyek NAEOS.
+Thank you for your interest in contributing to NAEOS! This document provides guidelines and information for contributors.
 
-## Tujuan kontribusi
-Kontribusi yang diterima sebaiknya membantu memperjelas, memperluas, atau memperbaiki spesifikasi, governance, dan referensi arsitektur NAEOS.
+## Table of Contents
 
-## Jenis perubahan yang diterima
-- perbaikan typo atau kejelasan dokumen,
-- penambahan penjelasan pada spesifikasi yang sudah ada,
-- proposal perubahan struktur, metadata, atau alur kerja,
-- penambahan contoh, glossary, atau referensi.
+- [Getting Started](#getting-started)
+- [Development Setup](#development-setup)
+- [Code Style](#code-style)
+- [Testing](#testing)
+- [Pull Request Process](#pull-request-process)
+- [Architecture Overview](#architecture-overview)
 
-## Sebelum mengajukan perubahan
-1. Baca dokumen inti terlebih dahulu:
-   - [specification/NAEOS-SPEC-001.md](specification/NAEOS-SPEC-001.md)
-   - [constitution/NAEOS-CON-001.md](constitution/NAEOS-CON-001.md)
-2. Pastikan perubahan Anda konsisten dengan prinsip NAEOS:
-   - traceability,
-   - human accountability,
-   - vendor neutrality,
-   - documentation as code.
-3. Jika mengusulkan perubahan yang signifikan, sertakan alasan, dampak, dan contoh penerapan.
+## Getting Started
 
-## Format penulisan dokumen
-- Gunakan struktur dokumen yang konsisten: metadata, executive summary, tujuan, rincian, dan referensi.
-- Sertakan ID dokumen, judul, versi, status, owner, dan dependensi bila relevan.
-- Hindari istilah yang ambigu; gunakan bahasa normatif seperti MUST, SHOULD, dan MAY bila mengatur aturan.
-- Jaga agar dokumen tetap mudah dibaca oleh manusia dan dapat diproses oleh mesin.
+1. Fork the repository
+2. Clone your fork
+3. Create a feature branch
+4. Make your changes
+5. Submit a pull request
 
-## Alur usulan perubahan
-1. Buat perubahan pada branch terpisah.
-2. Perbarui dokumen terkait yang terdampak.
-3. Jelaskan perubahan secara ringkas dalam pull request.
-4. Pastikan perubahan memiliki konteks dan alasan yang jelas.
+## Development Setup
 
-## Checklist review
-Sebelum mengajukan pull request, pastikan:
-- dokumen sudah tersusun rapi,
-- tautan internal sesuai,
-- istilah yang digunakan konsisten,
-- tidak ada konflik dengan dokumen yang lebih tinggi tingkatannya,
-- perubahan sudah dijelaskan dengan jelas.
+### Prerequisites
 
-## Catatan tambahan
-Repositori ini terutama berisi dokumen normatif dan referensi. Fokus utama kontribusi adalah menjaga kualitas, konsistensi, dan kejelasan spesifikasi.
+- Go 1.22 or later
+- Git
+- golangci-lint (optional, for linting)
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/NAEOS-foundation/naeos.git
+cd naeos
+
+# Install dependencies
+go mod tidy
+
+# Run tests
+go test ./...
+
+# Run linter (optional)
+golangci-lint run ./...
+```
+
+## Code Style
+
+### Go Code
+
+- Follow standard Go conventions
+- Use `gofmt` and `goimports` for formatting
+- Add comments for exported functions and types
+- Keep functions focused and small
+- Handle errors explicitly
+
+### Documentation
+
+- Use Markdown for all documentation
+- Follow the existing document structure
+- Include examples where appropriate
+- Keep language clear and concise
+
+## Testing
+
+### Writing Tests
+
+- Place test files alongside the code they test
+- Use table-driven tests where appropriate
+- Test both success and error cases
+- Aim for good coverage of critical paths
+
+### Running Tests
+
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with verbose output
+go test -v ./...
+
+# Run specific test
+go test -v ./internal/neir/model/...
+
+# Run tests with coverage
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+## Pull Request Process
+
+1. **Create a feature branch** from `main`
+2. **Make your changes** with clear, focused commits
+3. **Add tests** for new functionality
+4. **Update documentation** if needed
+5. **Run the test suite** to ensure nothing is broken
+6. **Submit your pull request** with a clear description
+
+### Commit Messages
+
+- Use clear, descriptive commit messages
+- Start with a verb in imperative mood
+- Keep the first line under 72 characters
+- Reference issues when applicable
+
+Example:
+```
+Add multi-language SDK generation support
+
+- Implement OutputAdapter interface pattern
+- Add Go, TypeScript, Python, Java, Rust adapters
+- Update pipeline to dispatch to adapters based on generation config
+- Add CLI --language flag for language override
+
+Closes #42
+```
+
+### PR Description
+
+Please include:
+- What the PR does
+- Why the change is needed
+- How it was tested
+- Any breaking changes
+
+## Architecture Overview
+
+### Project Structure
+
+```
+naeos/
+├── cmd/naeos/          # CLI entry point
+├── pkg/                # Public packages
+│   ├── kernel/         # Core kernel
+│   ├── pipeline/       # Pipeline orchestrator
+│   └── config/         # Configuration
+├── internal/           # Private packages
+│   ├── generation/     # Code generation
+│   │   ├── engine/     # Default engine
+│   │   └── adapters/   # Language adapters
+│   ├── neir/           # NEIR model
+│   ├── specification/  # Parser, normalizer, resolver
+│   └── governance/     # Policy, review
+├── specification/      # NAEOS specifications
+├── docs/               # Documentation
+└── governance/         # Governance documents
+```
+
+### Key Concepts
+
+- **NEIR** (Nusantara Enterprise Intermediate Representation): The canonical model that all engines consume
+- **OutputAdapter**: Interface for language-specific code generation
+- **Pipeline**: Orchestrates the entire transformation from specification to artifacts
+
+### Adding a New Language Adapter
+
+1. Create a new file in `internal/generation/adapters/`
+2. Implement the `OutputAdapter` interface
+3. Register via `init()` function
+4. Add tests
+5. Update documentation
+
+```go
+type MyAdapter struct{}
+
+func init() {
+    Register(MyAdapter{})
+}
+
+func (MyAdapter) Language() language.Language {
+    return "mylang"
+}
+
+func (MyAdapter) GenerateProject(projectName string) []engine.Artifact {
+    // Return project-level artifacts
+}
+// ... implement other methods
+```
+
+## Questions?
+
+If you have questions about contributing, feel free to:
+- Open an issue
+- Start a discussion
+- Reach out to maintainers
+
+Thank you for contributing to NAEOS!

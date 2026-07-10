@@ -26,12 +26,12 @@ import (
 )
 
 type Config struct {
-	Name      string
-	Mode      string
-	Verbose   bool
-	OutputDir string
-	Languages []string
-	Parser    parser.Parser
+	Name       string
+	Mode       string
+	Verbose    bool
+	OutputDir  string
+	Languages  []string
+	Parser     parser.Parser
 	Normalizer normalizer.Normalizer
 	Resolver   resolver.Resolver
 	Builder    builder.Builder
@@ -87,7 +87,7 @@ func ConfigFromFile(path string) (Config, error) {
 	}, nil
 }
 
-func New(cfg Config) (*Pipeline, error) {
+func New(cfg Config) (*Pipeline, error) { //nolint:gocritic // Public API, value semantics preferred
 	p := &Pipeline{
 		parser:         cfg.Parser,
 		normalizer:     cfg.Normalizer,
@@ -332,8 +332,8 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 
 		if len(p.policies) > 0 {
 			ctx := map[string]any{
-				"project": result.NEIR.Project.Name,
-				"modules": len(result.NEIR.Modules),
+				"project":  result.NEIR.Project.Name,
+				"modules":  len(result.NEIR.Modules),
 				"services": len(result.NEIR.Services),
 			}
 			if _, err := p.evaluator.EvaluateRules(p.policies, ctx); err != nil {
@@ -372,7 +372,7 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 				if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
 					return nil, fmt.Errorf("create artifact dir: %w", err)
 				}
-				if err := os.WriteFile(artifactPath, artifact.Content, 0o644); err != nil {
+				if err := os.WriteFile(artifactPath, artifact.Content, 0o600); err != nil {
 					return nil, fmt.Errorf("write artifact %s: %w", artifact.Path, err)
 				}
 			}
@@ -381,9 +381,9 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 		result.Tasks = tasks
 		result.Artifacts = artifacts
 		_ = p.emitKernelEvent("pipeline.run", map[string]any{
-			"artifacts": len(artifacts),
-			"tasks":     len(tasks),
-			"reviews":   len(reviews),
+			"artifacts":   len(artifacts),
+			"tasks":       len(tasks),
+			"reviews":     len(reviews),
 			"graph_nodes": execGraph.NodeCount(),
 			"graph_edges": execGraph.EdgeCount(),
 		})

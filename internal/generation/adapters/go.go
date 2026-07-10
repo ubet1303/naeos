@@ -39,10 +39,12 @@ func (GoAdapter) GenerateProject(projectName string) []engine.Artifact {
 	pkg := pkgName(projectName)
 
 	return []engine.Artifact{
-		{Path: "README.md", Content: []byte(fmt.Sprintf("# %s\n\nGenerated from NAEOS pipeline (Go).\n\n## Quick Start\n\n```bash\ngo run ./cmd/app\n```\n\n## Test\n\n```bash\ngo test ./...\n```\n", projectName))},
-		{Path: "go.mod", Content: []byte(fmt.Sprintf("module github.com/example/%s\n\ngo 1.22\n", slug))},
-		{Path: "cmd/app/main.go", Content: []byte(fmt.Sprintf("package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hello from %s\")\n}\n", projectName))},
+		{Path: "README.md", Content: []byte(fmt.Sprintf("# %s\n\nGenerated from NAEOS pipeline (Go).\n\n## Quick Start\n\n```bash\ngo run ./cmd/app\n```\n\n## Test\n\n```bash\nGo test ./...\n```\n", projectName))},
+		{Path: "go.mod", Content: []byte(fmt.Sprintf("module github.com/example/%s\n\ngo 1.22\n\nrequire (\n\tgopkg.in/yaml.v3 v3.0.1\n)\n", slug))},
+		{Path: ".gitignore", Content: []byte("# Binaries\n*.exe\n*.exe~\n*.dll\n*.so\n*.dylib\n\n# Test binary\n*.test\n\n# Output\n*.out\n\n# Dependency\nvendor/\n\n# IDE\n.idea/\n.vscode/\n*.swp\n*.swo\n\n# OS\n.DS_Store\nThumbs.db\n")},
+		{Path: "cmd/app/main.go", Content: []byte(fmt.Sprintf("package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\n\t\"github.com/example/%s/internal/core/config\"\n)\n\nfunc main() {\n\tcfg, err := config.Load(\"config.yaml\")\n\tif err != nil {\n\t\tfmt.Fprintf(os.Stderr, \"error: %%v\\n\", err)\n\t\tos.Exit(1)\n\t}\n\tfmt.Printf(\"%s started on port %%d\\n\", cfg.Port)\n}\n", slug, projectName))},
 		{Path: fmt.Sprintf("%s/package.go", pkg), Content: []byte(fmt.Sprintf("package %s\n\n// %s module.\n", pkg, projectName))},
+		{Path: "config.yaml", Content: []byte(fmt.Sprintf("name: %s\nport: 8080\nmode: development\n", slug))},
 	}
 }
 
@@ -58,10 +60,11 @@ func (GoAdapter) GenerateModule(moduleName, modulePath, projectName string) []en
 		{Path: fmt.Sprintf("%s/repository.go", dir), Content: []byte(fmt.Sprintf("package %s\n\ntype Repository interface {\n\tList() []string\n}\n", pkg))},
 		{Path: fmt.Sprintf("%s/service.go", dir), Content: []byte(fmt.Sprintf("package %s\n\ntype Service interface {\n\tHandle() string\n}\n", pkg))},
 		{Path: fmt.Sprintf("%s/domain/model.go", dir), Content: []byte("package domain\n\ntype Model struct {\n\tName string\n}\n")},
-		{Path: fmt.Sprintf("%s/http/handler.go", dir), Content: []byte(fmt.Sprintf("package http\n\nimport \"net/http\"\n\ntype Handler struct{}\n\nfunc (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {\n\tw.Write([]byte(\"handler for %s\"))\n}\n", moduleName))},
-		{Path: fmt.Sprintf("%s/http/router.go", dir), Content: []byte("package http\n\ntype Router struct{}\n")},
+		{Path: fmt.Sprintf("%s/http/handler.go", dir), Content: []byte(fmt.Sprintf("package http\n\nimport (\n\t\"encoding/json\"\n\t\"net/http\"\n)\n\ntype Handler struct{}\n\nfunc (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {\n\tw.Header().Set(\"Content-Type\", \"application/json\")\n\tjson.NewEncoder(w).Encode(map[string]string{\"module\": %q, \"status\": \"ok\"})\n}\n", moduleName))},
+		{Path: fmt.Sprintf("%s/http/router.go", dir), Content: []byte(fmt.Sprintf("package http\n\nimport \"net/http\"\n\ntype Router struct {\n\thandler Handler\n}\n\nfunc NewRouter() *Router {\n\treturn &Router{handler: Handler{}}\n}\n\nfunc (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {\n\tr.handler.ServeHTTP(w, req)\n}\n"))},
 		{Path: fmt.Sprintf("%s/middleware/logging.go", dir), Content: []byte("package middleware\n\nimport \"net/http\"\n\ntype LoggingMiddleware struct{}\n\nfunc (m LoggingMiddleware) Wrap(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\tnext.ServeHTTP(w, r)\n\t})\n}\n")},
-		{Path: fmt.Sprintf("%s/config/config.go", dir), Content: []byte("package config\n\ntype Config struct {\n\tPort int\n}\n")},
+		{Path: fmt.Sprintf("%s/config/config.go", dir), Content: []byte(fmt.Sprintf("package config\n\ntype Config struct {\n\tName string `yaml:\"name\"`\n\tPort int    `yaml:\"port\"`\n\tMode string `yaml:\"mode\"`\n}\n"))},
+		{Path: fmt.Sprintf("%s/config/load.go", dir), Content: []byte(fmt.Sprintf("package config\n\nimport (\n\t\"os\"\n\n\t\"gopkg.in/yaml.v3\"\n)\n\nfunc Load(path string) (*Config, error) {\n\tdata, err := os.ReadFile(path)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvar cfg Config\n\tif err := yaml.Unmarshal(data, &cfg); err != nil {\n\t\treturn nil, err\n\t}\n\treturn &cfg, nil\n}\n"))},
 		{Path: fmt.Sprintf("%s/handler_test.go", dir), Content: []byte(fmt.Sprintf("package %s\n\nimport \"testing\"\n\nfunc TestHandler(t *testing.T) {\n\tt.Log(\"test for %s\")\n}\n", pkg, moduleName))},
 	}
 }
@@ -78,8 +81,8 @@ func (GoAdapter) GenerateService(serviceName, serviceKind string, servicePort in
 
 	if serviceKind == "http" || serviceKind == "" {
 		artifacts = append(artifacts, engine.Artifact{
-			Path:    fmt.Sprintf("%s/server.go", dir),
-			Content: []byte(fmt.Sprintf("package %s\n\nimport \"fmt\"\n\nfunc Run(port int) error {\n\tfmt.Printf(\"%%s listening on :%%d\\n\", %q, port)\n\treturn nil\n}\n", pkg, serviceName)),
+			Path: fmt.Sprintf("%s/server.go", dir),
+			Content: []byte(fmt.Sprintf("package %s\n\nimport (\n\t\"fmt\"\n\t\"net/http\"\n)\n\nfunc Run(port int) error {\n\thandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\tw.Header().Set(\"Content-Type\", \"application/json\")\n\t\tfmt.Fprintf(w, `{\"service\":\"%%s\",\"status\":\"ok\"}`, %q)\n\t})\n\taddr := fmt.Sprintf(\":%%d\", port)\n\tfmt.Printf(\"%%s listening on %%s\\n\", %q, addr)\n\treturn http.ListenAndServe(addr, handler)\n}\n", pkg, serviceName, serviceName)),
 		})
 		artifacts = append(artifacts, engine.Artifact{
 			Path:    fmt.Sprintf("%s/server_test.go", dir),
