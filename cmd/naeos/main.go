@@ -86,5 +86,15 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newGraphQLCommand())
 	root.AddCommand(newMonitorCommand())
 	root.AddCommand(newPluginSDKCommand())
+	root.AddCommand(newAuthCommand())
+	root.AddCommand(newDBCommand())
+	root.AddCommand(newBrokerCommand())
+	root.AddCommand(newSearchCommand())
+	root.AddCommand(newWorkflowCommand())
+	root.AddCommand(newGatewayCommand())
+	root.AddCommand(newObservabilityCommand())
+	root.AddCommand(newSecurityCommand())
+	root.AddCommand(newPerfCommand())
+	root.AddCommand(newDXCommand())
 	return root
 }
