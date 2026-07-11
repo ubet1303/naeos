@@ -1,0 +1,39 @@
+package main
+
+import (
+	"fmt"
+	"net/http"
+	"github.com/NAEOS-foundation/naeos/internal/monitoring"
+	"github.com/spf13/cobra"
+)
+
+var (
+	monitorPort string
+)
+
+func newMonitorCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "monitor",
+		Short: "Start monitoring server with Prometheus metrics",
+		Long:  `Start monitoring server exposing Prometheus metrics, health, and readiness endpoints.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			metrics := monitoring.NewMetrics()
+			registry := metrics.Registry()
+
+			mux := http.NewServeMux()
+			mux.Handle("/metrics", monitoring.PrometheusHandler(registry))
+			mux.Handle("/health", monitoring.HealthHandler())
+			mux.Handle("/ready", monitoring.ReadyHandler())
+
+			fmt.Printf("Monitor server starting on http://localhost%s\n", monitorPort)
+			fmt.Println("  /metrics  - Prometheus metrics")
+			fmt.Println("  /health   - Health check")
+			fmt.Println("  /ready    - Readiness check")
+			return http.ListenAndServe(monitorPort, nil)
+		},
+	}
+
+	cmd.Flags().StringVarP(&monitorPort, "port", "p", ":9090", "Monitor server port")
+
+	return cmd
+}

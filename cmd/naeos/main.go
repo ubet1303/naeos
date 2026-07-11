@@ -84,5 +84,6 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newCICDCommand())
 	root.AddCommand(newWebSocketCommand())
 	root.AddCommand(newGraphQLCommand())
+	root.AddCommand(newMonitorCommand())
 	return root
 }
