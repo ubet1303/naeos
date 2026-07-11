@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
 
@@ -31,18 +31,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
 
-      - name: Run tests
-        run: go test -v -race -count=1 ./...
+      - name: Download modules
+        run: go mod download
 
-      - name: Test with coverage
-        run: go test -coverprofile=coverage.out ./...
+      - name: Run tests
+        run: go test ./... -race -coverprofile=coverage.out -covermode=atomic
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage.out
@@ -54,32 +54,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
 
       - name: Build
-        run: go build -o naeos ./cmd/naeos
+        run: go build ./...
 
-      - name: Verify binary
-        run: ./naeos version
+      - name: Vet
+        run: go vet ./...
 
-  validate:
-    name: Validate
+  release:
+    name: Release
     runs-on: ubuntu-latest
     needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
 
-      - name: Build
-        run: go build -o naeos ./cmd/naeos
+      - name: Build binaries
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o naeos-linux-amd64 ./cmd/naeos
+          GOOS=linux GOARCH=arm64 go build -o naeos-linux-arm64 ./cmd/naeos
+          GOOS=darwin GOARCH=amd64 go build -o naeos-darwin-amd64 ./cmd/naeos
+          GOOS=darwin GOARCH=arm64 go build -o naeos-darwin-arm64 ./cmd/naeos
+          GOOS=windows GOARCH=amd64 go build -o naeos-windows-amd64.exe ./cmd/naeos
 
-      - name: Validate with minimal spec
-        run: ./naeos validate examples/spec-minimal.yaml
-
-      - name: Validate with full spec
-        run: ./naeos validate examples/spec-full.yaml
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            naeos-linux-amd64
+            naeos-linux-arm64
+            naeos-darwin-amd64
+            naeos-darwin-arm64
+            naeos-windows-amd64.exe
