@@ -50,3 +50,4 @@ cmd/naeos/out/
 tmp/
 .tmp/
 documentation.o
+cmd/naeos/nonexistent/
