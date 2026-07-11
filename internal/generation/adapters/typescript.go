@@ -5,6 +5,7 @@ import (
 
 	"github.com/NAEOS-foundation/naeos/internal/generation/engine"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
+	"github.com/NAEOS-foundation/naeos/internal/shared/strutil"
 )
 
 type TypeScriptAdapter struct{}
@@ -18,7 +19,7 @@ func (TypeScriptAdapter) Language() language.Language {
 }
 
 func (TypeScriptAdapter) GenerateProject(projectName string) []engine.Artifact {
-	slug := slugify(projectName)
+	slug := strutil.Slugify(projectName)
 
 	return []engine.Artifact{
 		{Path: "README.md", Content: []byte(fmt.Sprintf("# %s\n\nGenerated from NAEOS pipeline (TypeScript).\n\n## Quick Start\n\n```bash\nnpm install\nnpm run dev\n```\n\n## Test\n\n```bash\nnpm test\n```\n", projectName))},
@@ -60,7 +61,7 @@ func (TypeScriptAdapter) GenerateProject(projectName string) []engine.Artifact {
 }
 
 func (TypeScriptAdapter) GenerateModule(moduleName, modulePath, projectName string) []engine.Artifact {
-	dir := fmt.Sprintf("src/%s", slugify(moduleName))
+	dir := fmt.Sprintf("src/%s", strutil.Slugify(moduleName))
 
 	return []engine.Artifact{
 		{Path: fmt.Sprintf("%s/index.ts", dir), Content: []byte(fmt.Sprintf("export * from \"./handler\";\nexport * from \"./service\";\nexport * from \"./repository\";\n"))},
@@ -73,7 +74,7 @@ func (TypeScriptAdapter) GenerateModule(moduleName, modulePath, projectName stri
 }
 
 func (TypeScriptAdapter) GenerateService(serviceName, serviceKind string, servicePort int, projectName string) []engine.Artifact {
-	dir := fmt.Sprintf("src/services/%s", slugify(serviceName))
+	dir := fmt.Sprintf("src/services/%s", strutil.Slugify(serviceName))
 
 	var artifacts []engine.Artifact
 	artifacts = append(artifacts, engine.Artifact{

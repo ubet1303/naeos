@@ -1,4 +1,4 @@
-package sample-specification
+package samplespecification
 
 type Service interface {
 	Handle() string

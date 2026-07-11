@@ -4,20 +4,22 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+
+	"github.com/NAEOS-foundation/naeos/internal/events"
 )
 
 type Kernel struct {
-	mutex       sync.RWMutex
-	services    map[string]any
-	subscribers map[string][]func(any)
-	metrics     Metrics
-	started     bool
+	mutex    sync.RWMutex
+	services map[string]any
+	bus      *events.Bus
+	metrics  Metrics
+	started  bool
 }
 
 func NewKernel() *Kernel {
 	return &Kernel{
-		services:    map[string]any{},
-		subscribers: map[string][]func(any){},
+		services: map[string]any{},
+		bus:      events.NewBus(),
 	}
 }
 
@@ -106,40 +108,17 @@ func (k *Kernel) Stop() error {
 }
 
 func (k *Kernel) Subscribe(topic string, handler func(any)) error {
-	if topic == "" {
-		return fmt.Errorf("topic cannot be empty")
-	}
-	if handler == nil {
-		return fmt.Errorf("handler cannot be nil")
-	}
-
-	k.mutex.Lock()
-	defer k.mutex.Unlock()
-
-	k.subscribers[topic] = append(k.subscribers[topic], handler)
-	return nil
+	return k.bus.Subscribe(topic, func(event events.Event) {
+		handler(event.Payload)
+	})
 }
 
 func (k *Kernel) Publish(topic string, payload any) {
-	k.mutex.RLock()
-	handlers := append([]func(any){}, k.subscribers[topic]...)
-	k.mutex.RUnlock()
-
-	for _, handler := range handlers {
-		handler(payload)
-	}
+	_ = k.bus.Publish(topic, payload)
 }
 
 func (k *Kernel) Topics() []string {
-	k.mutex.RLock()
-	defer k.mutex.RUnlock()
-
-	topics := make([]string, 0, len(k.subscribers))
-	for topic := range k.subscribers {
-		topics = append(topics, topic)
-	}
-	sort.Strings(topics)
-	return topics
+	return k.bus.Topics()
 }
 
 func (k *Kernel) EmitTelemetry(event TelemetryEvent) error {

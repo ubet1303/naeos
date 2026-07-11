@@ -5,6 +5,7 @@ import (
 
 	"github.com/NAEOS-foundation/naeos/internal/generation/engine"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
+	"github.com/NAEOS-foundation/naeos/internal/shared/strutil"
 )
 
 type PythonAdapter struct{}
@@ -18,7 +19,7 @@ func (PythonAdapter) Language() language.Language {
 }
 
 func (PythonAdapter) GenerateProject(projectName string) []engine.Artifact {
-	slug := slugify(projectName)
+	slug := strutil.Slugify(projectName)
 	pkg := pkgName(projectName)
 
 	return []engine.Artifact{
@@ -30,7 +31,7 @@ func (PythonAdapter) GenerateProject(projectName string) []engine.Artifact {
 }
 
 func (PythonAdapter) GenerateModule(moduleName, modulePath, projectName string) []engine.Artifact {
-	dir := fmt.Sprintf("src/%s", slugify(moduleName))
+	dir := fmt.Sprintf("src/%s", strutil.Slugify(moduleName))
 
 	return []engine.Artifact{
 		{Path: fmt.Sprintf("%s/__init__.py", dir), Content: []byte(fmt.Sprintf("\"\"\"%s module.\"\"\"\n", moduleName))},
@@ -38,12 +39,12 @@ func (PythonAdapter) GenerateModule(moduleName, modulePath, projectName string) 
 		{Path: fmt.Sprintf("%s/service.py", dir), Content: []byte("from abc import ABC, abstractmethod\n\n\nclass Service(ABC):\n    @abstractmethod\n    def process(self) -> str:\n        ...\n\n\nclass DefaultService(Service):\n    def process(self) -> str:\n        return \"processed\"\n")},
 		{Path: fmt.Sprintf("%s/repository.py", dir), Content: []byte("from abc import ABC, abstractmethod\n\n\nclass Repository(ABC):\n    @abstractmethod\n    def list(self) -> list[str]:\n        ...\n")},
 		{Path: fmt.Sprintf("%s/models.py", dir), Content: []byte("from dataclasses import dataclass\n\n\n@dataclass\nclass Model:\n    name: str\n")},
-		{Path: fmt.Sprintf("tests/test_%s.py", slugify(moduleName)), Content: []byte(fmt.Sprintf("def test_handler():\n    assert True\n"))},
+		{Path: fmt.Sprintf("tests/test_%s.py", strutil.Slugify(moduleName)), Content: []byte(fmt.Sprintf("def test_handler():\n    assert True\n"))},
 	}
 }
 
 func (PythonAdapter) GenerateService(serviceName, serviceKind string, servicePort int, projectName string) []engine.Artifact {
-	dir := fmt.Sprintf("src/services/%s", slugify(serviceName))
+	dir := fmt.Sprintf("src/services/%s", strutil.Slugify(serviceName))
 
 	var artifacts []engine.Artifact
 	artifacts = append(artifacts, engine.Artifact{

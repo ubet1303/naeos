@@ -2,16 +2,36 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"log"
+	"net/http"
 
-	"github.com/example/sample-specification/internal/core/config"
+	"github.com/example/sample-specification/internal/core"
+	coreconfig "github.com/example/sample-specification/internal/core/config"
+	corehttp "github.com/example/sample-specification/internal/core/http"
+	coremiddleware "github.com/example/sample-specification/internal/core/middleware"
 )
 
 func main() {
-	cfg, err := config.Load("config.yaml")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+	cfg := coreconfig.Load("config.yaml")
+	handler := core.NewHandler(nil)
+	_ = handler
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, "hello from sample-specification on port %d", cfg.Port)
+	})
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintln(w, "ok")
+	})
+	mux.HandleFunc("/api/v1", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintln(w, "api v1 ready")
+	})
+	mux.HandleFunc("/api/v1/resources", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintln(w, "resources endpoint")
+	})
+	_ = corehttp.Handler{}
+	wrapped := coremiddleware.LoggingMiddleware{}.Wrap(mux)
+	log.Printf("listening on :%d", cfg.Port)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), wrapped); err != nil {
+		log.Fatal(err)
 	}
-	fmt.Printf("sample-specification started on port %d\n", cfg.Port)
 }

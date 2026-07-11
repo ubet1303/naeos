@@ -6,6 +6,7 @@ import (
 
 	"github.com/NAEOS-foundation/naeos/internal/generation/engine"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
+	"github.com/NAEOS-foundation/naeos/internal/shared/strutil"
 )
 
 type GoAdapter struct{}
@@ -18,12 +19,18 @@ func (GoAdapter) Language() language.Language {
 	return language.LanguageGo
 }
 
-func slugify(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	s = strings.ReplaceAll(s, " ", "-")
-	s = strings.ReplaceAll(s, "/", "-")
-	s = strings.ReplaceAll(s, "_", "-")
-	return s
+func cleanModulePath(path string) string {
+	path = strings.TrimPrefix(path, "./")
+	path = strings.TrimPrefix(path, ".\\")
+	path = strings.TrimPrefix(path, "/")
+	path = strings.TrimPrefix(path, "\\")
+	if path == "" {
+		return ""
+	}
+	path = strings.ToLower(strings.TrimSpace(path))
+	path = strings.ReplaceAll(path, " ", "-")
+	path = strings.ReplaceAll(path, "_", "-")
+	return path
 }
 
 func pkgName(s string) string {
@@ -35,23 +42,23 @@ func pkgName(s string) string {
 }
 
 func (GoAdapter) GenerateProject(projectName string) []engine.Artifact {
-	slug := slugify(projectName)
+	slug := strutil.Slugify(projectName)
 	pkg := pkgName(projectName)
 
 	return []engine.Artifact{
-		{Path: "README.md", Content: []byte(fmt.Sprintf("# %s\n\nGenerated from NAEOS pipeline (Go).\n\n## Quick Start\n\n```bash\ngo run ./cmd/app\n```\n\n## Test\n\n```bash\nGo test ./...\n```\n", projectName))},
+		{Path: "README.md", Content: []byte(fmt.Sprintf("# %s\n\nGenerated from NAEOS pipeline (Go).\n\n## Quick Start\n\n```bash\ngo run ./cmd/app\n```\n\n## Test\n\n```bash\ngo test ./...\n```\n", projectName))},
 		{Path: "go.mod", Content: []byte(fmt.Sprintf("module github.com/example/%s\n\ngo 1.22\n\nrequire (\n\tgopkg.in/yaml.v3 v3.0.1\n)\n", slug))},
 		{Path: ".gitignore", Content: []byte("# Binaries\n*.exe\n*.exe~\n*.dll\n*.so\n*.dylib\n\n# Test binary\n*.test\n\n# Output\n*.out\n\n# Dependency\nvendor/\n\n# IDE\n.idea/\n.vscode/\n*.swp\n*.swo\n\n# OS\n.DS_Store\nThumbs.db\n")},
-		{Path: "cmd/app/main.go", Content: []byte(fmt.Sprintf("package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\n\t\"github.com/example/%s/internal/core/config\"\n)\n\nfunc main() {\n\tcfg, err := config.Load(\"config.yaml\")\n\tif err != nil {\n\t\tfmt.Fprintf(os.Stderr, \"error: %%v\\n\", err)\n\t\tos.Exit(1)\n\t}\n\tfmt.Printf(\"%s started on port %%d\\n\", cfg.Port)\n}\n", slug, projectName))},
+		{Path: "cmd/app/main.go", Content: []byte(fmt.Sprintf("package main\n\nimport (\n\t\"fmt\"\n\t\"log\"\n\t\"net/http\"\n\n\t\"github.com/example/%s/internal/core\"\n\tcoreconfig \"github.com/example/%s/internal/core/config\"\n\tcorehttp \"github.com/example/%s/internal/core/http\"\n\tcoremiddleware \"github.com/example/%s/internal/core/middleware\"\n)\n\nfunc main() {\n\tcfg := coreconfig.Load(\"config.yaml\")\n\thandler := core.NewHandler(nil)\n\t_ = handler\n\tmux := http.NewServeMux()\n\tmux.HandleFunc(\"/\", func(w http.ResponseWriter, r *http.Request) {\n\t\t_, _ = fmt.Fprintf(w, \"hello from %s on port %%d\", cfg.Port)\n\t})\n\tmux.HandleFunc(\"/health\", func(w http.ResponseWriter, r *http.Request) {\n\t\t_, _ = fmt.Fprintln(w, \"ok\")\n\t})\n\tmux.HandleFunc(\"/api/v1\", func(w http.ResponseWriter, r *http.Request) {\n\t\t_, _ = fmt.Fprintln(w, \"api v1 ready\")\n\t})\n\tmux.HandleFunc(\"/api/v1/resources\", func(w http.ResponseWriter, r *http.Request) {\n\t\t_, _ = fmt.Fprintln(w, \"resources endpoint\")\n\t})\n\t_ = corehttp.Handler{}\n\twrapped := coremiddleware.LoggingMiddleware{}.Wrap(mux)\n\tlog.Printf(\"listening on :%%d\", cfg.Port)\n\tif err := http.ListenAndServe(fmt.Sprintf(\":%%d\", cfg.Port), wrapped); err != nil {\n\t\tlog.Fatal(err)\n\t}\n}\n", slug, slug, slug, slug, projectName))},
 		{Path: fmt.Sprintf("%s/package.go", pkg), Content: []byte(fmt.Sprintf("package %s\n\n// %s module.\n", pkg, projectName))},
 		{Path: "config.yaml", Content: []byte(fmt.Sprintf("name: %s\nport: 8080\nmode: development\n", slug))},
 	}
 }
 
 func (GoAdapter) GenerateModule(moduleName, modulePath, projectName string) []engine.Artifact {
-	dir := slugify(modulePath)
+	dir := cleanModulePath(modulePath)
 	if dir == "" {
-		dir = slugify(moduleName)
+		dir = strutil.Slugify(moduleName)
 	}
 	pkg := pkgName(moduleName)
 
@@ -70,7 +77,7 @@ func (GoAdapter) GenerateModule(moduleName, modulePath, projectName string) []en
 }
 
 func (GoAdapter) GenerateService(serviceName, serviceKind string, servicePort int, projectName string) []engine.Artifact {
-	dir := fmt.Sprintf("internal/%s", slugify(serviceName))
+	dir := fmt.Sprintf("internal/%s", strutil.Slugify(serviceName))
 	pkg := pkgName(serviceName)
 
 	var artifacts []engine.Artifact

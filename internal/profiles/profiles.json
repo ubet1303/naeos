@@ -1,0 +1,204 @@
+[
+  {
+    "id": "saas",
+    "name": "SaaS Application",
+    "description": "Multi-tenant Software-as-a-Service web application with authentication, billing, and API gateway",
+    "industry": "technology",
+    "version": "1.0.0",
+    "modules": [
+      {"name": "auth", "path": "./internal/auth", "description": "Authentication and authorization module", "dependencies": ["core"]},
+      {"name": "billing", "path": "./internal/billing", "description": "Subscription and payment management", "dependencies": ["core", "auth"]},
+      {"name": "core", "path": "./internal/core", "description": "Core domain logic and shared utilities"},
+      {"name": "api", "path": "./internal/api", "description": "HTTP API layer with REST endpoints", "dependencies": ["core", "auth"]},
+      {"name": "storage", "path": "./internal/storage", "description": "Data access layer", "dependencies": ["core"]},
+      {"name": "notifications", "path": "./internal/notifications", "description": "Email and push notification service", "dependencies": ["core"]}
+    ],
+    "services": [
+      {"name": "api-gateway", "kind": "http", "port": 8080, "description": "REST API gateway"},
+      {"name": "worker", "kind": "worker", "port": 0, "description": "Background job processor"}
+    ],
+    "architecture": {
+      "pattern": "hexagonal",
+      "principles": ["ports and adapters", "dependency inversion", "single responsibility"]
+    },
+    "security": {
+      "authentication": "jwt",
+      "authorization": "rbac",
+      "roles": ["admin", "user", "viewer"],
+      "encryption": true
+    },
+    "deployment": {
+      "strategy": "rolling",
+      "environments": ["development", "staging", "production"]
+    },
+    "testing": {
+      "strategy": "unit-integration",
+      "coverage": "80%",
+      "frameworks": ["testing", "testify"]
+    },
+    "tags": ["web", "multi-tenant", "subscription"]
+  },
+  {
+    "id": "ai-agent",
+    "name": "AI Agent Platform",
+    "description": "AI agent platform with model orchestration, prompt management, and context retrieval",
+    "industry": "artificial-intelligence",
+    "version": "1.0.0",
+    "modules": [
+      {"name": "agent", "path": "./internal/agent", "description": "Agent lifecycle and orchestration", "dependencies": ["core", "llm"]},
+      {"name": "llm", "path": "./internal/llm", "description": "LLM provider integration", "dependencies": ["core"]},
+      {"name": "context", "path": "./internal/context", "description": "Context retrieval and RAG pipeline", "dependencies": ["core", "storage"]},
+      {"name": "prompts", "path": "./internal/prompts", "description": "Prompt template management", "dependencies": ["core"]},
+      {"name": "core", "path": "./internal/core", "description": "Core domain types and utilities"},
+      {"name": "storage", "path": "./internal/storage", "description": "Vector and document storage", "dependencies": ["core"]},
+      {"name": "api", "path": "./internal/api", "description": "REST and WebSocket API", "dependencies": ["agent", "core"]}
+    ],
+    "services": [
+      {"name": "api", "kind": "http", "port": 8080, "description": "Agent API and chat endpoint"},
+      {"name": "websocket", "kind": "http", "port": 8081, "description": "WebSocket for streaming responses"},
+      {"name": "worker", "kind": "worker", "port": 0, "description": "Background inference worker"}
+    ],
+    "architecture": {
+      "pattern": "event-driven",
+      "principles": ["async-first", "stream processing", "provider abstraction"]
+    },
+    "security": {
+      "authentication": "api-key",
+      "authorization": "role-based",
+      "roles": ["admin", "user", "api-consumer"],
+      "encryption": true
+    },
+    "deployment": {
+      "strategy": "canary",
+      "environments": ["development", "staging", "production"]
+    },
+    "testing": {
+      "strategy": "unit-integration",
+      "coverage": "75%",
+      "frameworks": ["testing", "testify", "mock"]
+    },
+    "tags": ["ai", "llm", "rag", "agents"]
+  },
+  {
+    "id": "fintech",
+    "name": "FinTech Payment Platform",
+    "description": "Financial technology platform with payment processing, ledger, and compliance",
+    "industry": "finance",
+    "version": "1.0.0",
+    "modules": [
+      {"name": "ledger", "path": "./internal/ledger", "description": "Double-entry accounting ledger", "dependencies": ["core"]},
+      {"name": "payments", "path": "./internal/payments", "description": "Payment processing and routing", "dependencies": ["core", "ledger"]},
+      {"name": "compliance", "path": "./internal/compliance", "description": "KYC/AML compliance checks", "dependencies": ["core"]},
+      {"name": "core", "path": "./internal/core", "description": "Core domain types and shared utilities"},
+      {"name": "api", "path": "./internal/api", "description": "REST API with OpenAPI spec", "dependencies": ["payments", "core", "auth"]},
+      {"name": "auth", "path": "./internal/auth", "description": "Multi-factor authentication", "dependencies": ["core"]},
+      {"name": "notifications", "path": "./internal/notifications", "description": "Transaction notifications and alerts", "dependencies": ["core"]}
+    ],
+    "services": [
+      {"name": "api", "kind": "http", "port": 8443, "description": "Secure payment API"},
+      {"name": "grpc", "kind": "grpc", "port": 9090, "description": "Internal gRPC services"},
+      {"name": "worker", "kind": "worker", "port": 0, "description": "Background settlement worker"}
+    ],
+    "architecture": {
+      "pattern": "clean",
+      "principles": ["audit trail", "immutability", "double-entry", "separation of duties"]
+    },
+    "security": {
+      "authentication": "mfa",
+      "authorization": "rbac",
+      "roles": ["admin", "operator", "auditor", "user"],
+      "encryption": true
+    },
+    "deployment": {
+      "strategy": "blue-green",
+      "environments": ["development", "staging", "production", "disaster-recovery"]
+    },
+    "testing": {
+      "strategy": "unit-integration-e2e",
+      "coverage": "90%",
+      "frameworks": ["testing", "testify"]
+    },
+    "tags": ["payments", "fintech", "compliance", "ledger"]
+  },
+  {
+    "id": "healthcare",
+    "name": "Healthcare Data Platform",
+    "description": "HIPAA-compliant healthcare platform with FHIR support and clinical data management",
+    "industry": "healthcare",
+    "version": "1.0.0",
+    "modules": [
+      {"name": "fhir", "path": "./internal/fhir", "description": "FHIR resource management", "dependencies": ["core"]},
+      {"name": "clinical", "path": "./internal/clinical", "description": "Clinical data processing", "dependencies": ["core", "fhir"]},
+      {"name": "patients", "path": "./internal/patients", "description": "Patient registry management", "dependencies": ["core", "fhir"]},
+      {"name": "core", "path": "./internal/core", "description": "Core domain types and utilities"},
+      {"name": "api", "path": "./internal/api", "description": "FHIR-compatible REST API", "dependencies": ["fhir", "core", "auth"]},
+      {"name": "auth", "path": "./internal/auth", "description": "Role-based access with audit logging", "dependencies": ["core"]},
+      {"name": "compliance", "path": "./internal/compliance", "description": "HIPAA compliance and audit", "dependencies": ["core"]}
+    ],
+    "services": [
+      {"name": "fhir-api", "kind": "http", "port": 8443, "description": "FHIR R4 REST API"},
+      {"name": "grpc", "kind": "grpc", "port": 9090, "description": "Internal clinical services"}
+    ],
+    "architecture": {
+      "pattern": "hexagonal",
+      "principles": ["FHIR compliance", "data isolation", "audit everything", "minimum necessary access"]
+    },
+    "security": {
+      "authentication": "oauth2",
+      "authorization": "abac",
+      "roles": ["admin", "physician", "nurse", "researcher", "auditor"],
+      "encryption": true
+    },
+    "deployment": {
+      "strategy": "blue-green",
+      "environments": ["development", "staging", "production"]
+    },
+    "testing": {
+      "strategy": "unit-integration",
+      "coverage": "85%",
+      "frameworks": ["testing", "testify"]
+    },
+    "tags": ["healthcare", "fhir", "hipaa", "clinical"]
+  },
+  {
+    "id": "government",
+    "name": "Government Digital Service",
+    "description": "Government digital service platform with citizen portal, case management, and compliance",
+    "industry": "government",
+    "version": "1.0.0",
+    "modules": [
+      {"name": "citizens", "path": "./internal/citizens", "description": "Citizen portal and identity", "dependencies": ["core"]},
+      {"name": "cases", "path": "./internal/cases", "description": "Case management workflow", "dependencies": ["core", "citizens"]},
+      {"name": "documents", "path": "./internal/documents", "description": "Document management and archival", "dependencies": ["core"]},
+      {"name": "core", "path": "./internal/core", "description": "Core domain types and shared utilities"},
+      {"name": "api", "path": "./internal/api", "description": "REST API with versioning", "dependencies": ["cases", "core", "auth"]},
+      {"name": "auth", "path": "./internal/auth", "description": "Government SSO and MFA", "dependencies": ["core"]},
+      {"name": "audit", "path": "./internal/audit", "description": "Audit trail and compliance logging", "dependencies": ["core"]}
+    ],
+    "services": [
+      {"name": "portal", "kind": "http", "port": 443, "description": "Citizen-facing web portal API"},
+      {"name": "internal-api", "kind": "http", "port": 8080, "description": "Internal staff API"},
+      {"name": "worker", "kind": "worker", "port": 0, "description": "Batch processing worker"}
+    ],
+    "architecture": {
+      "pattern": "layered",
+      "principles": ["accessibility", "security-first", "audit trail", "data sovereignty"]
+    },
+    "security": {
+      "authentication": "saml-sso",
+      "authorization": "rbac",
+      "roles": ["admin", "officer", "supervisor", "citizen"],
+      "encryption": true
+    },
+    "deployment": {
+      "strategy": "rolling",
+      "environments": ["development", "staging", "production"]
+    },
+    "testing": {
+      "strategy": "unit-integration",
+      "coverage": "80%",
+      "frameworks": ["testing", "testify"]
+    },
+    "tags": ["government", "citizen-services", "compliance", "audit"]
+  }
+]

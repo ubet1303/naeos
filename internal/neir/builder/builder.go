@@ -33,10 +33,7 @@ func (DefaultBuilder) Build(resolved any) (*model.NEIR, error) {
 
 	resolvedSpec, ok := resolved.(*resolver.ResolvedSpec)
 	if !ok {
-		return &model.NEIR{
-			Project: &project.Project{Name: fmt.Sprint(resolved)},
-			Modules: []module.Module{},
-		}, nil
+		return nil, fmt.Errorf("expected *resolver.ResolvedSpec, got %T", resolved)
 	}
 
 	neir := &model.NEIR{

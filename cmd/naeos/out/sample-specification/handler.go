@@ -1,4 +1,4 @@
-package sample-specification
+package samplespecification
 
 type Handler struct {
 	service Service

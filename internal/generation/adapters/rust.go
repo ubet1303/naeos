@@ -5,6 +5,7 @@ import (
 
 	"github.com/NAEOS-foundation/naeos/internal/generation/engine"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
+	"github.com/NAEOS-foundation/naeos/internal/shared/strutil"
 )
 
 type RustAdapter struct{}
@@ -18,7 +19,7 @@ func (RustAdapter) Language() language.Language {
 }
 
 func (RustAdapter) GenerateProject(projectName string) []engine.Artifact {
-	slug := slugify(projectName)
+	slug := strutil.Slugify(projectName)
 
 	return []engine.Artifact{
 		{Path: "README.md", Content: []byte(fmt.Sprintf("# %s\n\nGenerated from NAEOS pipeline (Rust).\n\n## Quick Start\n\n```bash\ncargo build\ncargo run\n```\n\n## Test\n\n```bash\ncargo test\n```\n", projectName))},
@@ -29,7 +30,7 @@ func (RustAdapter) GenerateProject(projectName string) []engine.Artifact {
 }
 
 func (RustAdapter) GenerateModule(moduleName, modulePath, projectName string) []engine.Artifact {
-	mod := slugify(moduleName)
+	mod := strutil.Slugify(moduleName)
 
 	return []engine.Artifact{
 		{Path: fmt.Sprintf("src/%s/mod.rs", mod), Content: []byte(fmt.Sprintf("pub mod handler;\npub mod service;\npub mod repository;\npub mod models;\n"))},
@@ -42,7 +43,7 @@ func (RustAdapter) GenerateModule(moduleName, modulePath, projectName string) []
 }
 
 func (RustAdapter) GenerateService(serviceName, serviceKind string, servicePort int, projectName string) []engine.Artifact {
-	svc := slugify(serviceName)
+	svc := strutil.Slugify(serviceName)
 
 	var artifacts []engine.Artifact
 

@@ -389,3 +389,51 @@ func parsePort(line string) (int, error) {
 	}
 	return port, nil
 }
+
+func MergeSpecs(docs ...*SpecDocument) *SpecDocument {
+	if len(docs) == 0 {
+		return nil
+	}
+	if len(docs) == 1 {
+		return docs[0]
+	}
+
+	merged := &SpecDocument{
+		Raw:  docs[0].Raw,
+		Data: docs[0].Data,
+	}
+
+	if docs[0].Project != "" {
+		merged.Project = docs[0].Project
+	}
+
+	seenModules := make(map[string]bool)
+	for _, doc := range docs {
+		if doc.Project != "" && merged.Project == "" {
+			merged.Project = doc.Project
+		}
+		for _, m := range doc.Modules {
+			if !seenModules[m.Name] {
+				seenModules[m.Name] = true
+				merged.Modules = append(merged.Modules, m)
+			}
+		}
+		for _, s := range doc.Services {
+			merged.Services = append(merged.Services, s)
+		}
+		if doc.Architecture != nil && merged.Architecture == nil {
+			merged.Architecture = doc.Architecture
+		}
+		if doc.Deployment != nil && merged.Deployment == nil {
+			merged.Deployment = doc.Deployment
+		}
+		if doc.Testing != nil && merged.Testing == nil {
+			merged.Testing = doc.Testing
+		}
+		if doc.Generation != nil && merged.Generation == nil {
+			merged.Generation = doc.Generation
+		}
+	}
+
+	return merged
+}

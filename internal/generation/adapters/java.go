@@ -5,6 +5,7 @@ import (
 
 	"github.com/NAEOS-foundation/naeos/internal/generation/engine"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
+	"github.com/NAEOS-foundation/naeos/internal/shared/strutil"
 )
 
 type JavaAdapter struct{}
@@ -18,7 +19,7 @@ func (JavaAdapter) Language() language.Language {
 }
 
 func (JavaAdapter) GenerateProject(projectName string) []engine.Artifact {
-	slug := slugify(projectName)
+	slug := strutil.Slugify(projectName)
 	javaPkg := pkgName(projectName)
 
 	return []engine.Artifact{

@@ -1,5 +1,7 @@
 package config
 
 type Config struct {
-	Port int
+	Name string `yaml:"name"`
+	Port int    `yaml:"port"`
+	Mode string `yaml:"mode"`
 }

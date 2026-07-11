@@ -1,3 +1,3 @@
 # api
 
-Module for preview-demo project.
+Module for file-driven-project project.

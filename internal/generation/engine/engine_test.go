@@ -20,11 +20,17 @@ func TestGeneratorCreatesArtifactsFromNEIR(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate returned error: %v", err)
 	}
-	if len(artifacts) < 2 {
-		t.Fatalf("expected at least two artifacts, got %d", len(artifacts))
+	if len(artifacts) < 1 {
+		t.Fatalf("expected at least one artifact, got %d", len(artifacts))
 	}
-	if artifacts[0].Path != "README.md" {
-		t.Fatalf("expected README artifact first, got %s", artifacts[0].Path)
+	foundModule := false
+	for _, a := range artifacts {
+		if a.Path == "internal/auth/README.md" {
+			foundModule = true
+		}
+	}
+	if !foundModule {
+		t.Error("expected module README artifact")
 	}
 }
 

@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,6 +23,7 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/specification/normalizer"
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 	"github.com/NAEOS-foundation/naeos/internal/specification/resolver"
+	naeoslog "github.com/NAEOS-foundation/naeos/internal/shared/log"
 	cfgpkg "github.com/NAEOS-foundation/naeos/pkg/config"
 	"github.com/NAEOS-foundation/naeos/pkg/kernel"
 )
@@ -30,6 +32,7 @@ type Config struct {
 	Name       string
 	Mode       string
 	Verbose    bool
+	DryRun     bool
 	OutputDir  string
 	Languages  []string
 	Parser     parser.Parser
@@ -46,6 +49,24 @@ type Config struct {
 	Reviewer   review.Reviewer
 	Kernel     *kernel.Kernel
 	Policies   []policy.Rule
+	Hooks      *Hooks
+}
+
+type HookFunc func(ctx *HookContext) error
+
+type HookContext struct {
+	Pipeline *Pipeline
+	Stage    string
+	Data     map[string]any
+}
+
+type Hooks struct {
+	BeforeParse  []HookFunc
+	AfterParse   []HookFunc
+	BeforeRun    []HookFunc
+	AfterRun     []HookFunc
+	BeforeGenerate []HookFunc
+	AfterGenerate  []HookFunc
 }
 
 type Pipeline struct {
@@ -66,6 +87,8 @@ type Pipeline struct {
 	outputDirValue string
 	languages      []string
 	verbose        bool
+	dryRun         bool
+	hooks          *Hooks
 }
 
 type Result struct {
@@ -110,6 +133,8 @@ func New(cfg Config) (*Pipeline, error) { //nolint:gocritic // Public API, value
 		outputDirValue: cfg.OutputDir,
 		languages:      cfg.Languages,
 		verbose:        cfg.Verbose,
+		dryRun:         cfg.DryRun,
+		hooks:          cfg.Hooks,
 	}
 
 	if p.parser == nil {
@@ -217,8 +242,32 @@ func (p *Pipeline) emitKernelEvent(name string, payload map[string]any) error {
 
 func (p *Pipeline) logVerbose(format string, args ...any) {
 	if p.verbose {
-		fmt.Fprintf(os.Stderr, "[naeos] "+format+"\n", args...)
+		naeoslog.Info(fmt.Sprintf(format, args...))
 	}
+}
+
+func (p *Pipeline) executeHooks(hookFuncs []HookFunc, stage string) error {
+	if p.hooks == nil || len(hookFuncs) == 0 {
+		return nil
+	}
+	ctx := &HookContext{
+		Pipeline: p,
+		Stage:    stage,
+		Data:     make(map[string]any),
+	}
+	for _, hook := range hookFuncs {
+		if err := hook(ctx); err != nil {
+			return fmt.Errorf("hook %s failed: %w", stage, err)
+		}
+	}
+	return nil
+}
+
+func (p *Pipeline) Hooks() *Hooks {
+	if p.hooks == nil {
+		return &Hooks{}
+	}
+	return p.hooks
 }
 
 func (p *Pipeline) buildExecutionGraph(neir *model.NEIR) *graph.PlannerGraph {
@@ -280,6 +329,10 @@ func (p *Pipeline) validateWithoutKernel(input string) (*Result, error) {
 		return nil, fmt.Errorf("input cannot be empty")
 	}
 
+	if err := p.executeHooks(p.getHookFuncs().BeforeParse, "parse"); err != nil {
+		return nil, err
+	}
+
 	p.logVerbose("parsing specification (%d bytes)", len(input))
 	parsed, err := p.parser.Parse(input)
 	if err != nil {
@@ -292,6 +345,10 @@ func (p *Pipeline) validateWithoutKernel(input string) (*Result, error) {
 		if len(parsed.Modules) == 0 {
 			parsed.Modules = []parser.Module{{Name: parser.DefaultModuleNameForProject(parsed.Project), Path: fmt.Sprintf("./%s", parser.Slugify(parsed.Project))}}
 		}
+	}
+
+	if err := p.executeHooks(p.getHookFuncs().AfterParse, "parse"); err != nil {
+		return nil, err
 	}
 
 	p.logVerbose("normalizing specification")
@@ -335,13 +392,32 @@ func (p *Pipeline) validateWithoutKernel(input string) (*Result, error) {
 }
 
 func (p *Pipeline) Validate(input string) (*Result, error) {
+	return p.ValidateContext(context.Background(), input)
+}
+
+func (p *Pipeline) ValidateContext(ctx context.Context, input string) (*Result, error) {
 	return p.executeWithKernel(func() (*Result, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("context cancelled: %w", err)
+		}
 		return p.validateWithoutKernel(input)
 	})
 }
 
 func (p *Pipeline) Run(input string) (*Result, error) {
+	return p.RunContext(context.Background(), input)
+}
+
+func (p *Pipeline) RunContext(ctx context.Context, input string) (*Result, error) {
 	return p.executeWithKernel(func() (*Result, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("context cancelled: %w", err)
+		}
+
+		if err := p.executeHooks(p.getHookFuncs().BeforeRun, "run"); err != nil {
+			return nil, err
+		}
+
 		result, err := p.validateWithoutKernel(input)
 		if err != nil {
 			return nil, err
@@ -369,6 +445,10 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 			return nil, err
 		}
 
+		if err := p.executeHooks(p.getHookFuncs().BeforeGenerate, "generate"); err != nil {
+			return nil, err
+		}
+
 		p.logVerbose("generating artifacts")
 		artifacts, err := p.generator.Generate(result.NEIR)
 		if err != nil {
@@ -382,6 +462,10 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 		}
 		artifacts = append(artifacts, adapterArtifacts...)
 
+		if err := p.executeHooks(p.getHookFuncs().AfterGenerate, "generate"); err != nil {
+			return nil, err
+		}
+
 		p.logVerbose("reviewing %d artifacts", len(artifacts))
 		var reviews []*review.ReviewResult
 		for _, artifact := range artifacts {
@@ -392,7 +476,7 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 		}
 		result.Reviews = reviews
 
-		if outputDir := p.outputDirValue; outputDir != "" {
+		if outputDir := p.outputDirValue; outputDir != "" && !p.dryRun {
 			p.logVerbose("writing %d artifacts to %s", len(artifacts), outputDir)
 			for _, artifact := range artifacts {
 				artifactPath := filepath.Join(outputDir, artifact.Path)
@@ -403,6 +487,8 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 					return nil, fmt.Errorf("write artifact %s: %w", artifact.Path, err)
 				}
 			}
+		} else if p.dryRun {
+			p.logVerbose("dry-run: skipping write of %d artifacts", len(artifacts))
 		}
 
 		result.Tasks = tasks
@@ -415,8 +501,20 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 			"graph_nodes": execGraph.NodeCount(),
 			"graph_edges": execGraph.EdgeCount(),
 		})
+
+		if err := p.executeHooks(p.getHookFuncs().AfterRun, "run"); err != nil {
+			return nil, err
+		}
+
 		return result, nil
 	})
+}
+
+func (p *Pipeline) getHookFuncs() *Hooks {
+	if p.hooks == nil {
+		return &Hooks{}
+	}
+	return p.hooks
 }
 
 func (p *Pipeline) RegisteredKernelServices() []string {
