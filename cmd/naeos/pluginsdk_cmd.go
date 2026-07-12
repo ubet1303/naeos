@@ -2,50 +2,28 @@ package main
 
 import (
 	"fmt"
-	"github.com/NAEOS-foundation/naeos/internal/pluginsdk"
+
 	"github.com/spf13/cobra"
 )
 
 func newPluginSDKCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "pluginsdk",
-		Short: "Plugin SDK management commands",
-		Long:  `Manage and develop custom plugins for NAEOS.`,
-	}
-
-	cmd.AddCommand(newPluginSDKListCommand())
-	cmd.AddCommand(newPluginSDKInfoCommand())
-
-	return cmd
-}
-
-func newPluginSDKListCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List available plugins",
-		Run: func(cmd *cobra.Command, args []string) {
-			manager := pluginsdk.NewManager()
-			plugins := manager.List()
-			if len(plugins) == 0 {
-				fmt.Println("No plugins registered")
-				return
-			}
-			for _, name := range plugins {
-				fmt.Printf("  - %s\n", name)
-			}
-		},
-	}
-}
-
-func newPluginSDKInfoCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "info [name]",
-		Short: "Show plugin information",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-			fmt.Printf("Plugin: %s\n", name)
-			fmt.Println("Use 'naeos plugin install <name>' to install a plugin")
+		Use:        "pluginsdk",
+		Short:      "Plugin SDK commands (deprecated)",
+		Deprecated: "use 'naeos plugin' instead",
+		Hidden:     true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(cmd.ErrOrStderr(), "Warning: 'naeos pluginsdk' is deprecated. Use 'naeos plugin' instead.")
+			fmt.Fprintln(cmd.ErrOrStderr(), "")
+			fmt.Fprintln(cmd.ErrOrStderr(), "Available commands:")
+			fmt.Fprintln(cmd.ErrOrStderr(), "  naeos plugin list        - List installed plugins")
+			fmt.Fprintln(cmd.ErrOrStderr(), "  naeos plugin install     - Install a plugin")
+			fmt.Fprintln(cmd.ErrOrStderr(), "  naeos plugin uninstall   - Uninstall a plugin")
+			fmt.Fprintln(cmd.ErrOrStderr(), "  naeos plugin enable      - Enable a plugin")
+			fmt.Fprintln(cmd.ErrOrStderr(), "  naeos plugin disable     - Disable a plugin")
+			fmt.Fprintln(cmd.ErrOrStderr(), "  naeos plugin info        - Show plugin info")
+			fmt.Fprintln(cmd.ErrOrStderr(), "  naeos plugin execute     - Execute a plugin action")
+			return nil
 		},
 	}
 }

@@ -1,0 +1,393 @@
+package pluginhost
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	goplugin "plugin"
+	"strings"
+	"sync"
+	"time"
+)
+
+// Manager is the unified plugin manager that handles loading, lifecycle,
+// sandboxing, and execution of plugins.
+type Manager struct {
+	pluginDir string
+	plugins   map[string]Plugin
+	info      map[string]*PluginInfo
+	config    PluginConfig
+	sandbox   *Sandbox
+	mu        sync.RWMutex
+}
+
+// PluginConfig is the persisted plugin configuration.
+type PluginConfig struct {
+	Plugins []PluginInfo    `json:"plugins"`
+	Sandbox SandboxConfig  `json:"sandbox,omitempty"`
+}
+
+// NewManager creates a new PluginManager for the given directory.
+func NewManager(pluginDir string) *Manager {
+	return &Manager{
+		pluginDir: pluginDir,
+		plugins:   make(map[string]Plugin),
+		info:      make(map[string]*PluginInfo),
+		sandbox:   NewSandbox(SandboxConfig{}),
+	}
+}
+
+func (m *Manager) configPath() string {
+	return filepath.Join(m.pluginDir, "plugins.json")
+}
+
+// LoadConfig reads the plugin configuration from disk.
+func (m *Manager) LoadConfig() error {
+	data, err := os.ReadFile(m.configPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			m.config = PluginConfig{}
+			return nil
+		}
+		return err
+	}
+	if err := json.Unmarshal(data, &m.config); err != nil {
+		return err
+	}
+	m.sandbox = NewSandbox(m.config.Sandbox)
+	return nil
+}
+
+// SaveConfig writes the plugin configuration to disk.
+func (m *Manager) SaveConfig() error {
+	data, err := json.MarshalIndent(m.config, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(m.pluginDir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(m.configPath(), data, 0o600)
+}
+
+// List returns metadata for all configured plugins.
+func (m *Manager) List() []PluginInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.config.Plugins
+}
+
+// Get returns a loaded plugin by name.
+func (m *Manager) Get(name string) (Plugin, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	p, ok := m.plugins[name]
+	return p, ok
+}
+
+// GetInfo returns plugin info by name.
+func (m *Manager) GetInfo(name string) (*PluginInfo, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for i := range m.config.Plugins {
+		if m.config.Plugins[i].Name == name {
+			return &m.config.Plugins[i], true
+		}
+	}
+	return nil, false
+}
+
+// Install registers a Go plugin from a .so file path.
+// It reads the exported symbols (PluginName, PluginVersion, PluginDescription)
+// to build metadata, then saves to config.
+func (m *Manager) Install(path string) (*PluginInfo, error) {
+	goPlugin, err := goplugin.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open plugin %s: %w", path, err)
+	}
+
+	symName, err := goPlugin.Lookup("PluginName")
+	if err != nil {
+		return nil, fmt.Errorf("plugin %s does not export PluginName: %w", path, err)
+	}
+	namePtr, ok := symName.(*string)
+	if !ok {
+		return nil, fmt.Errorf("PluginName is not *string")
+	}
+
+	version := "0.0.0"
+	if symVersion, err := goPlugin.Lookup("PluginVersion"); err == nil {
+		if vPtr, ok := symVersion.(*string); ok {
+			version = *vPtr
+		}
+	}
+
+	description := ""
+	if symDesc, err := goPlugin.Lookup("PluginDescription"); err == nil {
+		if dPtr, ok := symDesc.(*string); ok {
+			description = *dPtr
+		}
+	}
+
+	author := ""
+	if symAuthor, err := goPlugin.Lookup("PluginAuthor"); err == nil {
+		if aPtr, ok := symAuthor.(*string); ok {
+			author = *aPtr
+		}
+	}
+
+	pInfo := PluginInfo{
+		Name:        *namePtr,
+		Version:     version,
+		Description: description,
+		Author:      author,
+		Path:        path,
+		Enabled:     true,
+		State:       StateCreated,
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i, p := range m.config.Plugins {
+		if p.Name == pInfo.Name {
+			m.config.Plugins[i] = pInfo
+			return &pInfo, m.SaveConfig()
+		}
+	}
+
+	m.config.Plugins = append(m.config.Plugins, pInfo)
+	return &pInfo, m.SaveConfig()
+}
+
+// Uninstall removes a plugin from the config.
+func (m *Manager) Uninstall(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i, p := range m.config.Plugins {
+		if p.Name == name {
+			m.config.Plugins = append(m.config.Plugins[:i], m.config.Plugins[i+1:]...)
+			delete(m.plugins, name)
+			delete(m.info, name)
+			return m.SaveConfig()
+		}
+	}
+	return fmt.Errorf("plugin %s not found", name)
+}
+
+// Enable enables a plugin by name.
+func (m *Manager) Enable(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i, p := range m.config.Plugins {
+		if p.Name == name {
+			m.config.Plugins[i].Enabled = true
+			return m.SaveConfig()
+		}
+	}
+	return fmt.Errorf("plugin %s not found", name)
+}
+
+// Disable disables a plugin by name.
+func (m *Manager) Disable(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i, p := range m.config.Plugins {
+		if p.Name == name {
+			m.config.Plugins[i].Enabled = false
+			return m.SaveConfig()
+		}
+	}
+	return fmt.Errorf("plugin %s not found", name)
+}
+
+// Register registers a plugin in-memory (for in-process plugins).
+func (m *Manager) Register(p Plugin) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	name := p.Name()
+	if _, exists := m.plugins[name]; exists {
+		return fmt.Errorf("plugin '%s' already registered", name)
+	}
+
+	m.plugins[name] = p
+	m.info[name] = &PluginInfo{
+		Name:    name,
+		Version: p.Version(),
+		State:   StateCreated,
+	}
+	return nil
+}
+
+// Unregister removes a plugin from in-memory registration.
+func (m *Manager) Unregister(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.plugins[name]; !exists {
+		return fmt.Errorf("plugin '%s' not found", name)
+	}
+
+	delete(m.plugins, name)
+	delete(m.info, name)
+	return nil
+}
+
+// LoadAll loads all enabled plugins from .so files.
+func (m *Manager) LoadAll(ctx *PluginContext) error {
+	m.mu.RLock()
+	pluginsCopy := make([]PluginInfo, len(m.config.Plugins))
+	copy(pluginsCopy, m.config.Plugins)
+	m.mu.RUnlock()
+
+	for _, pInfo := range pluginsCopy {
+		if !pInfo.Enabled || pInfo.Path == "" {
+			continue
+		}
+		if err := m.sandbox.ValidatePath(pInfo.Path); err != nil {
+			continue
+		}
+		p, err := m.loadGoPlugin(pInfo.Path)
+		if err != nil {
+			continue
+		}
+		if err := p.Initialize(ctx); err != nil {
+			m.updateState(pInfo.Name, StateError, err)
+			continue
+		}
+		m.mu.Lock()
+		m.plugins[pInfo.Name] = p
+		m.updateStateLocked(pInfo.Name, StateInitialized, nil)
+		m.mu.Unlock()
+	}
+	return nil
+}
+
+func (m *Manager) loadGoPlugin(path string) (Plugin, error) {
+	goPlugin, err := goplugin.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	sym, err := goPlugin.Lookup("NaeosPlugin")
+	if err != nil {
+		return nil, fmt.Errorf("plugin does not export NaeosPlugin: %w", err)
+	}
+
+	p, ok := sym.(Plugin)
+	if !ok {
+		return nil, fmt.Errorf("NaeosPlugin does not implement pluginhost.Plugin interface")
+	}
+
+	return p, nil
+}
+
+// InitializeAll initializes all registered in-process plugins.
+func (m *Manager) InitializeAll(ctx *PluginContext) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for name, p := range m.plugins {
+		if err := p.Initialize(ctx); err != nil {
+			m.updateStateLocked(name, StateError, err)
+			return fmt.Errorf("failed to initialize plugin '%s': %w", name, err)
+		}
+		m.updateStateLocked(name, StateInitialized, nil)
+	}
+	return nil
+}
+
+// ShutdownAll shuts down all loaded plugins.
+func (m *Manager) ShutdownAll() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var lastErr error
+	for name, p := range m.plugins {
+		if err := p.Shutdown(); err != nil {
+			m.updateStateLocked(name, StateError, err)
+			lastErr = fmt.Errorf("failed to shutdown plugin '%s': %w", name, err)
+		} else {
+			m.updateStateLocked(name, StateStopped, nil)
+		}
+	}
+	return lastErr
+}
+
+// Execute runs a plugin action with sandbox protections.
+func (m *Manager) Execute(ctx context.Context, name, action string, params map[string]any) (any, error) {
+	p, ok := m.Get(name)
+	if !ok {
+		return nil, fmt.Errorf("plugin %s not loaded", name)
+	}
+	if err := m.sandbox.CheckRateLimit(name); err != nil {
+		return nil, err
+	}
+
+	m.mu.Lock()
+	m.updateStateLocked(name, StateRunning, nil)
+	m.mu.Unlock()
+
+	result, err := m.sandbox.ExecuteWithTimeout(ctx, func() (any, error) {
+		return p.Execute(action, params)
+	})
+
+	m.mu.Lock()
+	if err != nil {
+		m.updateStateLocked(name, StateError, err)
+	} else {
+		m.updateStateLocked(name, StateInitialized, nil)
+	}
+	m.mu.Unlock()
+
+	return result, err
+}
+
+// Cleanup calls Shutdown on all loaded plugins and releases resources.
+func (m *Manager) Cleanup() error {
+	var errs []string
+	for name, p := range m.plugins {
+		if err := p.Shutdown(); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("cleanup errors: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func (m *Manager) updateState(name string, state PluginState, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.updateStateLocked(name, state, err)
+}
+
+func (m *Manager) updateStateLocked(name string, state PluginState, err error) {
+	if info, ok := m.info[name]; ok {
+		info.State = state
+		if state == StateInitialized || state == StateRunning {
+			if info.StartedAt.IsZero() {
+				info.StartedAt = time.Now()
+			}
+		}
+		if err != nil {
+			info.Error = err
+		}
+	}
+	for i := range m.config.Plugins {
+		if m.config.Plugins[i].Name == name {
+			m.config.Plugins[i].State = state
+			if err != nil {
+				m.config.Plugins[i].Error = err
+			}
+			break
+		}
+	}
+}

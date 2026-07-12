@@ -1,34 +1,40 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
-	"github.com/NAEOS-foundation/naeos/pkg/plugin"
+	"github.com/NAEOS-foundation/naeos/internal/pluginhost"
 )
 
 func newPluginCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "plugin",
 		Short: "Manage NAEOS plugins",
-		Long: `Manage NAEOS plugins (install, uninstall, list).
+		Long: `Manage NAEOS plugins (install, uninstall, list, enable, disable, execute, info).
 
 Example:
   naeos plugin list
   naeos plugin install ./my-plugin.so
-  naeos plugin uninstall my-plugin`,
+  naeos plugin uninstall my-plugin
+  naeos plugin enable my-plugin
+  naeos plugin disable my-plugin
+  naeos plugin info my-plugin
+  naeos plugin execute my-plugin lint --params '{"file":"main.go"}'`,
 	}
 
 	var pluginDir string
 
-	pluginList := &cobra.Command{
+	pluginCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List installed plugins",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mgr := plugin.NewManager(pluginDir)
+			mgr := pluginhost.NewManager(pluginDir)
 			if err := mgr.LoadConfig(); err != nil {
 				return err
 			}
@@ -42,7 +48,7 @@ Example:
 				if !p.Enabled {
 					status = "disabled"
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %s\n", p.Name, p.Version, status)
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %-12s %s\n", p.Name, p.Version, status, p.Description)
 			}
 			return nil
 		},
@@ -53,7 +59,7 @@ Example:
 		Short: "Install a plugin from a .so file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mgr := plugin.NewManager(pluginDir)
+			mgr := pluginhost.NewManager(pluginDir)
 			if err := mgr.LoadConfig(); err != nil {
 				return err
 			}
@@ -71,7 +77,7 @@ Example:
 		Short: "Uninstall a plugin",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mgr := plugin.NewManager(pluginDir)
+			mgr := pluginhost.NewManager(pluginDir)
 			if err := mgr.LoadConfig(); err != nil {
 				return err
 			}
@@ -83,9 +89,119 @@ Example:
 		},
 	}
 
-	cmd.AddCommand(pluginList)
+	pluginEnable := &cobra.Command{
+		Use:   "enable [name]",
+		Short: "Enable a plugin",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			mgr := pluginhost.NewManager(pluginDir)
+			if err := mgr.LoadConfig(); err != nil {
+				return err
+			}
+			if err := mgr.Enable(args[0]); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Enabled plugin %s\n", args[0])
+			return nil
+		},
+	}
+
+	pluginDisable := &cobra.Command{
+		Use:   "disable [name]",
+		Short: "Disable a plugin",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			mgr := pluginhost.NewManager(pluginDir)
+			if err := mgr.LoadConfig(); err != nil {
+				return err
+			}
+			if err := mgr.Disable(args[0]); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Disabled plugin %s\n", args[0])
+			return nil
+		},
+	}
+
+	pluginInfo := &cobra.Command{
+		Use:   "info [name]",
+		Short: "Show plugin information",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			mgr := pluginhost.NewManager(pluginDir)
+			if err := mgr.LoadConfig(); err != nil {
+				return err
+			}
+			info, ok := mgr.GetInfo(args[0])
+			if !ok {
+				return fmt.Errorf("plugin %s not found", args[0])
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Name:        %s\n", info.Name)
+			fmt.Fprintf(cmd.OutOrStdout(), "Version:     %s\n", info.Version)
+			fmt.Fprintf(cmd.OutOrStdout(), "Description: %s\n", info.Description)
+			if info.Author != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Author:      %s\n", info.Author)
+			}
+			if info.Path != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Path:        %s\n", info.Path)
+			}
+			status := "enabled"
+			if !info.Enabled {
+				status = "disabled"
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Status:      %s\n", status)
+			fmt.Fprintf(cmd.OutOrStdout(), "State:       %s\n", info.State)
+			return nil
+		},
+	}
+
+	pluginExecute := &cobra.Command{
+		Use:   "execute [name] [action] [--params json]",
+		Short: "Execute a plugin action",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			action := args[1]
+
+			paramsJSON, _ := cmd.Flags().GetString("params")
+			var params map[string]any
+			if paramsJSON != "" {
+				if err := json.Unmarshal([]byte(paramsJSON), &params); err != nil {
+					return fmt.Errorf("invalid params JSON: %w", err)
+				}
+			}
+
+			mgr := pluginhost.NewManager(pluginDir)
+			if err := mgr.LoadConfig(); err != nil {
+				return err
+			}
+			if err := mgr.LoadAll(&pluginhost.PluginContext{
+				ConfigDir: pluginDir,
+				OutputDir: filepath.Join(pluginDir, "output"),
+			}); err != nil {
+				return err
+			}
+			defer func() { _ = mgr.Cleanup() }()
+
+			result, err := mgr.Execute(context.Background(), name, action, params)
+			if err != nil {
+				return err
+			}
+
+			output, _ := json.MarshalIndent(result, "", "  ")
+			fmt.Fprintln(cmd.OutOrStdout(), string(output))
+			return nil
+		},
+	}
+	pluginExecute.Flags().String("params", "", "JSON parameters for the action")
+
+	cmd.AddCommand(pluginCmd)
 	cmd.AddCommand(pluginInstall)
 	cmd.AddCommand(pluginUninstall)
+	cmd.AddCommand(pluginEnable)
+	cmd.AddCommand(pluginDisable)
+	cmd.AddCommand(pluginInfo)
+	cmd.AddCommand(pluginExecute)
 	cmd.PersistentFlags().StringVar(&pluginDir, "plugin-dir", filepath.Join(os.Getenv("HOME"), ".naeos", "plugins"), "plugin directory")
 	return cmd
 }

@@ -8,8 +8,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
+
+	"github.com/NAEOS-foundation/naeos/internal/compiler"
+	contextbundle "github.com/NAEOS-foundation/naeos/internal/context/bundle"
+	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 )
 
 type Server struct {
@@ -18,6 +23,29 @@ type Server struct {
 	server  *http.Server
 	Auth    *AuthConfig
 	Limiter *RateLimiter
+	jwt     *JWTValidator
+	parser  parser.Parser
+	compiler *compiler.Compiler
+	bundle   *contextbundle.Generator
+	artifacts []artifactEntry
+	pipelines []pipelineRun
+}
+
+type artifactEntry struct {
+	ID      string `json:"id"`
+	Path    string `json:"path"`
+	Kind    string `json:"kind"`
+	Size    int64  `json:"size"`
+	Created string `json:"created"`
+}
+
+type pipelineRun struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	Project   string `json:"project"`
+	Modules   int    `json:"modules"`
+	Services  int    `json:"services"`
+	CreatedAt string `json:"created_at"`
 }
 
 type AuthConfig struct {
@@ -42,7 +70,14 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 		Router: http.NewServeMux(),
 		Auth:   auth,
 		Limiter: NewRateLimiter(100, time.Minute),
+		parser:  parser.NewParser(),
+		compiler: compiler.New(),
 	}
+
+	if auth != nil && auth.JWTSecret != "" {
+		s.jwt = NewJWTValidator(auth.JWTSecret)
+	}
+	s.bundle = contextbundle.NewGenerator(s.compiler)
 
 	s.setupRoutes()
 	return s
@@ -96,7 +131,14 @@ func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFun
 				s.writeError(w, http.StatusUnauthorized, "authorization required")
 				return
 			}
-			// TODO: Validate JWT
+			token = strings.TrimPrefix(token, "Bearer ")
+			if s.jwt != nil {
+				_, err := s.jwt.Validate(token)
+				if err != nil {
+					s.writeError(w, http.StatusUnauthorized, "invalid token: "+err.Error())
+					return
+				}
+			}
 		}
 
 		handler(w, r)
@@ -124,7 +166,7 @@ func (s *Server) writeError(w http.ResponseWriter, status int, message string) {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":  "healthy",
-		"version": "0.4.0",
+		"version": "0.5.0",
 		"uptime":  time.Since(startTime).String(),
 	})
 }
@@ -133,17 +175,30 @@ func (s *Server) handleSpecs(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		s.writeJSON(w, http.StatusOK, map[string]interface{}{
-			"specs": []string{"spec.yaml", "spec.json"},
+			"count": len(s.pipelines),
 		})
 	case "POST":
-		var spec map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&spec); err != nil {
-			s.writeError(w, http.StatusBadRequest, "invalid spec")
+		var req struct {
+			Spec string `json:"spec"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if req.Spec == "" {
+			s.writeError(w, http.StatusBadRequest, "spec field required")
+			return
+		}
+		doc, err := s.parser.Parse(req.Spec)
+		if err != nil {
+			s.writeError(w, http.StatusBadRequest, "parse error: "+err.Error())
 			return
 		}
 		s.writeJSON(w, http.StatusCreated, map[string]interface{}{
-			"message": "spec received",
-			"modules": len(spec["modules"].([]interface{})),
+			"message":  "spec received and parsed",
+			"project":  doc.Project,
+			"modules":  len(doc.Modules),
+			"services": len(doc.Services),
 		})
 	default:
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -155,9 +210,33 @@ func (s *Server) handleSpecValidate(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	var req struct {
+		Spec string `json:"spec"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Spec == "" {
+		s.writeJSON(w, http.StatusOK, map[string]interface{}{
+			"valid":    false,
+			"errors":   []string{"spec field is required"},
+			"warnings": []string{},
+		})
+		return
+	}
+	_, err := s.parser.Parse(req.Spec)
+	if err != nil {
+		s.writeJSON(w, http.StatusOK, map[string]interface{}{
+			"valid":    false,
+			"errors":   []string{err.Error()},
+			"warnings": []string{},
+		})
+		return
+	}
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"valid":   true,
-		"errors":  []string{},
+		"valid":    true,
+		"errors":   []string{},
 		"warnings": []string{},
 	})
 }
@@ -167,9 +246,31 @@ func (s *Server) handleSpecCompile(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	var req struct {
+		Spec   string `json:"spec"`
+		Target string `json:"target"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Spec == "" {
+		s.writeError(w, http.StatusBadRequest, "spec field required")
+		return
+	}
+	doc, err := s.parser.Parse(req.Spec)
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, "parse error: "+err.Error())
+		return
+	}
+	b := s.bundle.GenerateFromSpec(doc)
+	targets := s.compiler.Targets()
+	if len(targets) == 0 {
+		targets = []compiler.Target{"copilot", "claude", "cursor", "gemini", "codex", "opencode"}
+	}
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"compiled": true,
-		"targets":  []string{"copilot", "claude", "cursor", "gemini", "codex", "opencode"},
+		"compiled":  true,
+		"targets":   targets,
+		"bundle":    b.ToMarkdown(),
+		"project":   doc.Project,
+		"modules":   len(doc.Modules),
+		"services":  len(doc.Services),
 	})
 }
 
@@ -178,9 +279,37 @@ func (s *Server) handlePipelineRun(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	var req struct {
+		Spec   string `json:"spec"`
+		Target string `json:"target"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Spec == "" {
+		s.writeError(w, http.StatusBadRequest, "spec field required")
+		return
+	}
+	doc, err := s.parser.Parse(req.Spec)
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, "parse error: "+err.Error())
+		return
+	}
+	b := s.bundle.GenerateFromSpec(doc)
+	pipelineID := fmt.Sprintf("pipeline-%d", time.Now().UnixNano())
+	run := pipelineRun{
+		ID:        pipelineID,
+		Status:    "completed",
+		Project:   doc.Project,
+		Modules:   len(doc.Modules),
+		Services:  len(doc.Services),
+		CreatedAt: time.Now().Format(time.RFC3339),
+	}
+	s.pipelines = append(s.pipelines, run)
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"pipeline_id": fmt.Sprintf("pipeline-%d", time.Now().UnixNano()),
-		"status":      "running",
+		"pipeline_id": pipelineID,
+		"status":      "completed",
+		"project":     doc.Project,
+		"modules":     len(doc.Modules),
+		"services":    len(doc.Services),
+		"bundle":      b.ToMarkdown(),
 	})
 }
 
@@ -189,9 +318,19 @@ func (s *Server) handlePipelineStatus(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	var lastRun *pipelineRun
+	if len(s.pipelines) > 0 {
+		last := s.pipelines[len(s.pipelines)-1]
+		lastRun = &last
+	}
+	status := "idle"
+	if lastRun != nil && lastRun.Status == "running" {
+		status = "running"
+	}
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"status":  "idle",
-		"last_run": nil,
+		"status":   status,
+		"total":    len(s.pipelines),
+		"last_run": lastRun,
 	})
 }
 
@@ -199,11 +338,39 @@ func (s *Server) handleArtifacts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		s.writeJSON(w, http.StatusOK, map[string]interface{}{
-			"artifacts": []string{},
+			"artifacts": s.artifacts,
+			"count":     len(s.artifacts),
 		})
 	case "POST":
+		var req struct {
+			Path    string `json:"path"`
+			Content string `json:"content"`
+			Kind    string `json:"kind"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if req.Path == "" || req.Content == "" {
+			s.writeError(w, http.StatusBadRequest, "path and content required")
+			return
+		}
+		kind := req.Kind
+		if kind == "" {
+			kind = "other"
+		}
+		id := fmt.Sprintf("art-%d", time.Now().UnixNano())
+		artifact := artifactEntry{
+			ID:      id,
+			Path:    req.Path,
+			Kind:    kind,
+			Size:    int64(len(req.Content)),
+			Created: time.Now().Format(time.RFC3339),
+		}
+		s.artifacts = append(s.artifacts, artifact)
 		s.writeJSON(w, http.StatusCreated, map[string]interface{}{
-			"message": "artifact stored",
+			"message":  "artifact stored",
+			"artifact": artifact,
 		})
 	default:
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -215,9 +382,35 @@ func (s *Server) handleContextGenerate(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	var req struct {
+		Spec   string `json:"spec"`
+		Format string `json:"format"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Spec == "" {
+		s.writeError(w, http.StatusBadRequest, "spec field required")
+		return
+	}
+	doc, err := s.parser.Parse(req.Spec)
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, "parse error: "+err.Error())
+		return
+	}
+	b := s.bundle.GenerateFromSpec(doc)
+	format := req.Format
+	if format == "" {
+		format = "markdown"
+	}
+	var text string
+	switch format {
+	case "plain":
+		text = b.ToPlainText()
+	default:
+		text = b.ToMarkdown()
+	}
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"context": "generated",
-		"format":  "markdown",
+		"context": text,
+		"format":  format,
+		"project": doc.Project,
 	})
 }
 
@@ -226,10 +419,72 @@ func (s *Server) handleMCPMessage(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"jsonrpc": "2.0",
-		"result":  "mcp response",
-	})
+	var req struct {
+		JSONRPC string          `json:"jsonrpc"`
+		Method  string          `json:"method"`
+		Params  json.RawMessage `json:"params,omitempty"`
+		ID      any             `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid JSON-RPC request")
+		return
+	}
+
+	type jsonRPCResponse struct {
+		JSONRPC string `json:"jsonrpc"`
+		Result  any    `json:"result,omitempty"`
+		Error   any    `json:"error,omitempty"`
+		ID      any    `json:"id"`
+	}
+	resp := jsonRPCResponse{JSONRPC: "2.0", ID: req.ID}
+
+	switch req.Method {
+	case "initialize":
+		resp.Result = map[string]any{
+			"protocolVersion": "2024-11-05",
+			"serverInfo":      map[string]any{"name": "naeos-api-mcp", "version": "0.5.0"},
+		}
+	case "tools/list":
+		resp.Result = map[string]any{
+			"tools": []map[string]any{
+				{"name": "parse_spec", "description": "Parse a NAEOS specification"},
+				{"name": "validate_spec", "description": "Validate a specification"},
+				{"name": "compile_spec", "description": "Compile specification to AI instructions"},
+			},
+		}
+	case "tools/call":
+		var params struct {
+			Name      string         `json:"name"`
+			Arguments map[string]any `json:"arguments"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			resp.Error = map[string]any{"code": -32602, "message": "invalid params"}
+		} else {
+			spec, _ := params.Arguments["spec"].(string)
+			switch params.Name {
+			case "parse_spec":
+				if spec == "" {
+					resp.Error = map[string]any{"code": -32000, "message": "spec is required"}
+				} else {
+					doc, err := s.parser.Parse(spec)
+					if err != nil {
+						resp.Error = map[string]any{"code": -32000, "message": err.Error()}
+					} else {
+						resp.Result = map[string]any{
+							"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Project: %s\nModules: %d\nServices: %d", doc.Project, len(doc.Modules), len(doc.Services))}},
+						}
+					}
+				}
+			default:
+				resp.Error = map[string]any{"code": -32601, "message": "method not found"}
+			}
+		}
+	default:
+		resp.Error = map[string]any{"code": -32601, "message": "method not found"}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 var startTime = time.Now()

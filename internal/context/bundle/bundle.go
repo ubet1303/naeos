@@ -10,16 +10,38 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 )
 
+type DependencyEdge struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	Kind string `json:"kind"`
+}
+
+type SecurityContext struct {
+	AuthMethod   string   `json:"auth_method,omitempty"`
+	AuthProvider string   `json:"auth_provider,omitempty"`
+	AuthModel    string   `json:"auth_model,omitempty"`
+	Roles        []string `json:"roles,omitempty"`
+}
+
+type CloudResource struct {
+	Provider string `json:"provider"`
+	Type     string `json:"type"`
+	Name     string `json:"name"`
+}
+
 type Bundle struct {
-	Project    string            `json:"project"`
-	Summary    string            `json:"summary"`
-	Modules    []ModuleContext   `json:"modules"`
-	Services   []ServiceContext  `json:"services"`
-	Languages  []string          `json:"languages"`
-	Targets    []string          `json:"targets"`
-	NEIR       string            `json:"neir,omitempty"`
-	Raw        string            `json:"raw,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
+	Project          string            `json:"project"`
+	Summary          string            `json:"summary"`
+	Modules          []ModuleContext   `json:"modules"`
+	Services         []ServiceContext  `json:"services"`
+	Languages        []string          `json:"languages"`
+	Targets          []string          `json:"targets"`
+	NEIR             string            `json:"neir,omitempty"`
+	Raw              string            `json:"raw,omitempty"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
+	DependencyGraph  []DependencyEdge  `json:"dependency_graph,omitempty"`
+	Security         *SecurityContext  `json:"security,omitempty"`
+	Cloud            []CloudResource   `json:"cloud,omitempty"`
 }
 
 type ModuleContext struct {
@@ -140,12 +162,98 @@ func (g *Generator) GenerateFromSpec(doc *parser.SpecDocument) *Bundle {
 		bundle.Languages = doc.Generation.Languages
 	}
 
+	for _, mod := range doc.Modules {
+		for _, dep := range mod.Dependencies {
+			bundle.DependencyGraph = append(bundle.DependencyGraph, DependencyEdge{
+				From: mod.Name,
+				To:   dep,
+				Kind: "module",
+			})
+		}
+	}
+
+	bundle.Security = extractSecurityFromDoc(doc)
+	bundle.Cloud = extractCloudFromDoc(doc)
+
 	bundle.Summary = g.buildSummary(bundle)
 	bundle.Metadata["generated_by"] = "naeos-context-bundle"
 	bundle.Metadata["module_count"] = fmt.Sprintf("%d", len(bundle.Modules))
 	bundle.Metadata["service_count"] = fmt.Sprintf("%d", len(bundle.Services))
 
 	return bundle
+}
+
+func extractSecurityFromDoc(doc *parser.SpecDocument) *SecurityContext {
+	if doc.Data == nil {
+		return nil
+	}
+	m, ok := doc.Data.(map[string]any)
+	if !ok {
+		return nil
+	}
+	raw, ok := m["security"]
+	if !ok {
+		return nil
+	}
+	sm, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	sc := &SecurityContext{}
+	if v, ok := sm["auth_method"].(string); ok {
+		sc.AuthMethod = v
+	}
+	if v, ok := sm["auth_provider"].(string); ok {
+		sc.AuthProvider = v
+	}
+	if v, ok := sm["auth_model"].(string); ok {
+		sc.AuthModel = v
+	}
+	if roles, ok := sm["roles"].([]any); ok {
+		for _, r := range roles {
+			if s, ok := r.(string); ok {
+				sc.Roles = append(sc.Roles, s)
+			}
+		}
+	}
+	return sc
+}
+
+func extractCloudFromDoc(doc *parser.SpecDocument) []CloudResource {
+	if doc.Data == nil {
+		return nil
+	}
+	m, ok := doc.Data.(map[string]any)
+	if !ok {
+		return nil
+	}
+	raw, ok := m["cloud"]
+	if !ok {
+		return nil
+	}
+	list, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	var resources []CloudResource
+	for _, item := range list {
+		rm, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		cr := CloudResource{}
+		if v, ok := rm["provider"].(string); ok {
+			cr.Provider = v
+		}
+		if v, ok := rm["type"].(string); ok {
+			cr.Type = v
+		}
+		if v, ok := rm["name"].(string); ok {
+			cr.Name = v
+		}
+		resources = append(resources, cr)
+	}
+	return resources
 }
 
 func (g *Generator) buildSummary(b *Bundle) string {
@@ -227,6 +335,39 @@ func (b *Bundle) ToMarkdown() string {
 		sb.WriteString("\n```\n\n")
 	}
 
+	if len(b.DependencyGraph) > 0 {
+		sb.WriteString("## Dependency Graph\n\n")
+		for _, e := range b.DependencyGraph {
+			sb.WriteString(fmt.Sprintf("- `%s` → `%s` (kind=%s)\n", e.From, e.To, e.Kind))
+		}
+		sb.WriteString("\n")
+	}
+
+	if b.Security != nil {
+		sb.WriteString("## Security\n\n")
+		if b.Security.AuthMethod != "" {
+			sb.WriteString(fmt.Sprintf("- Auth Method: %s\n", b.Security.AuthMethod))
+		}
+		if b.Security.AuthProvider != "" {
+			sb.WriteString(fmt.Sprintf("- Auth Provider: %s\n", b.Security.AuthProvider))
+		}
+		if b.Security.AuthModel != "" {
+			sb.WriteString(fmt.Sprintf("- Auth Model: %s\n", b.Security.AuthModel))
+		}
+		if len(b.Security.Roles) > 0 {
+			sb.WriteString(fmt.Sprintf("- Roles: %s\n", strings.Join(b.Security.Roles, ", ")))
+		}
+		sb.WriteString("\n")
+	}
+
+	if len(b.Cloud) > 0 {
+		sb.WriteString("## Cloud Resources\n\n")
+		for _, cr := range b.Cloud {
+			sb.WriteString(fmt.Sprintf("- **%s** (provider=%s, type=%s)\n", cr.Name, cr.Provider, cr.Type))
+		}
+		sb.WriteString("\n")
+	}
+
 	return sb.String()
 }
 
@@ -251,6 +392,36 @@ func (b *Bundle) ToPlainText() string {
 
 	for _, s := range b.Services {
 		sb.WriteString(fmt.Sprintf("  Service: %s kind=%s port=%d\n", s.Name, s.Kind, s.Port))
+	}
+
+	if len(b.DependencyGraph) > 0 {
+		sb.WriteString("Dependency Graph:\n")
+		for _, e := range b.DependencyGraph {
+			sb.WriteString(fmt.Sprintf("  %s -> %s (kind=%s)\n", e.From, e.To, e.Kind))
+		}
+	}
+
+	if b.Security != nil {
+		sb.WriteString("Security:\n")
+		if b.Security.AuthMethod != "" {
+			sb.WriteString(fmt.Sprintf("  Auth Method: %s\n", b.Security.AuthMethod))
+		}
+		if b.Security.AuthProvider != "" {
+			sb.WriteString(fmt.Sprintf("  Auth Provider: %s\n", b.Security.AuthProvider))
+		}
+		if b.Security.AuthModel != "" {
+			sb.WriteString(fmt.Sprintf("  Auth Model: %s\n", b.Security.AuthModel))
+		}
+		if len(b.Security.Roles) > 0 {
+			sb.WriteString(fmt.Sprintf("  Roles: %s\n", strings.Join(b.Security.Roles, ", ")))
+		}
+	}
+
+	if len(b.Cloud) > 0 {
+		sb.WriteString("Cloud Resources:\n")
+		for _, cr := range b.Cloud {
+			sb.WriteString(fmt.Sprintf("  %s (provider=%s, type=%s)\n", cr.Name, cr.Provider, cr.Type))
+		}
 	}
 
 	return sb.String()

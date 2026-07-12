@@ -7,6 +7,7 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/architecture"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/deployment"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/generation"
+	"github.com/NAEOS-foundation/naeos/internal/neir/model/infrastructure"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/metadata"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/module"
@@ -98,6 +99,12 @@ func (DefaultBuilder) Build(resolved any) (*model.NEIR, error) {
 	if rawTest, exists := resolvedSpec.Context["testing"]; exists {
 		if testMap, ok := rawTest.(map[string]any); ok {
 			neir.Testing = extractTesting(testMap)
+		}
+	}
+
+	if rawCloud, exists := resolvedSpec.Context["cloud"]; exists {
+		if cloudMap, ok := rawCloud.(map[string]any); ok {
+			neir.Infrastructure = extractCloud(cloudMap)
 		}
 	}
 
@@ -230,4 +237,54 @@ func extractTesting(m map[string]any) *testingmodel.Testing {
 		test.Coverage = &testingmodel.Coverage{MinPercent: minPercent}
 	}
 	return test
+}
+
+func extractCloud(m map[string]any) *infrastructure.Infrastructure {
+	infra := &infrastructure.Infrastructure{}
+
+	if provider, ok := m["provider"].(string); ok {
+		infra.Provider = infrastructure.Provider(provider)
+	}
+	if region, ok := m["region"].(string); ok {
+		infra.Region = region
+	}
+	if project, ok := m["project"].(string); ok {
+		infra.Project = project
+	}
+	if env, ok := m["environment"].(string); ok {
+		infra.Environment = env
+	}
+
+	if rawResources, ok := m["resources"].([]any); ok {
+		for _, raw := range rawResources {
+			if resMap, ok := raw.(map[string]any); ok {
+				res := infrastructure.Resource{}
+				if name, ok := resMap["name"].(string); ok {
+					res.Name = name
+				}
+				if kind, ok := resMap["kind"].(string); ok {
+					res.Kind = kind
+				}
+				if resType, ok := resMap["type"].(string); ok {
+					res.Type = resType
+				}
+				if spec, ok := resMap["spec"].(map[string]any); ok {
+					res.Spec = make(map[string]string)
+					for k, v := range spec {
+						res.Spec[k] = fmt.Sprint(v)
+					}
+				}
+				infra.Resources = append(infra.Resources, res)
+			}
+		}
+	}
+
+	if attrs, ok := m["attributes"].(map[string]any); ok {
+		infra.Attributes = make(map[string]string)
+		for k, v := range attrs {
+			infra.Attributes[k] = fmt.Sprint(v)
+		}
+	}
+
+	return infra
 }

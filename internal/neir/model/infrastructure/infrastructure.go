@@ -12,6 +12,8 @@ const (
 type Infrastructure struct {
 	Provider    Provider          `json:"provider,omitempty"`
 	Region      string            `json:"region,omitempty"`
+	Project     string            `json:"project,omitempty"`
+	Environment string            `json:"environment,omitempty"`
 	Resources   []Resource        `json:"resources,omitempty"`
 	Networking  []Network         `json:"networking,omitempty"`
 	Attributes  map[string]string `json:"attributes,omitempty"`
@@ -20,6 +22,7 @@ type Infrastructure struct {
 type Resource struct {
 	Name string            `json:"name"`
 	Kind string            `json:"kind,omitempty"`
+	Type string            `json:"type,omitempty"`
 	Spec map[string]string `json:"spec,omitempty"`
 }
 

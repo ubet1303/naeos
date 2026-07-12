@@ -40,3 +40,27 @@ Prioritas utama adalah menjaga kualitas, konsistensi, dan keterpahaman dokumen b
 - [x] Add `SetOutputDir()` and file write to RuntimeEngine
 - [x] 180+ tests passing with race detector
 - [x] Clean up duplicate governance files
+
+### v0.5.0 — Cloud Integration & Plugin Unification
+- [x] Cloud resource types (storage, compute, database, cache, queue, CDN) for AWS/GCP/Azure
+- [x] Terraform HCL export for all 6 resource types × 3 providers (21 adapter tests)
+- [x] CLI `cloud run` with `--input-file` flag and spec loader
+- [x] CLI `cloud types` command listing supported resource types
+- [x] Unified plugin system (`internal/pluginhost/`) merging 3 legacy packages
+- [x] Plugin lifecycle: `enable`, `disable`, `info`, `execute` subcommands
+- [x] `pkg/plugin` and `internal/pluginsdk` deprecated with redirect wrappers
+- [x] NEIR model extended with `Project`, `Environment`, `Type` infrastructure fields
+- [x] MCP server: fixed version (0.3.0 → 0.5.0), compile_spec returns context bundle
+- [x] API server: JWT auth wired into middleware, handlers use real pipeline
+- [x] Dashboard: dynamic `GetStats()`, version updated to 0.5.0
+- [x] Tests added for: shared/log, dashboard, docgen, testrunner, testgen, mcp (6 new test files)
+
+### v0.5.1 — Quality & DevOps
+- [x] API handlers fully wired (handleSpecs, handleArtifacts, handleMCPMessage, handlePipelineStatus)
+- [x] Integration tests: full pipeline spec → parse → normalize → resolve → build → validate → compile
+- [x] Cloud adapter content-based HCL tests (18 subtests: AWS/GCP/Azure × 6 resource types)
+- [x] Context bundle enricher: dependency graph, security context, cloud resource mapping
+- [x] Dashboard stats persistence (JSON file-based)
+- [x] CI/CD pipeline (.github/workflows/ci.yml)
+- [x] golangci-lint config (.golangci.yaml)
+- [x] OpenAPI 3.0 spec (docs/openapi.yaml, 10 endpoints)

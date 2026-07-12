@@ -56,12 +56,9 @@ func TestSpecsEndpointGET(t *testing.T) {
 func TestSpecsEndpointPOST(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	spec := map[string]interface{}{
-		"project": "test",
-		"modules": []interface{}{},
-	}
-	body, _ := json.Marshal(spec)
-
+	body, _ := json.Marshal(map[string]string{
+		"spec": "project: test\nmodules:\n  - name: core\n    path: ./core\n",
+	})
 	req := httptest.NewRequest("POST", "/api/v1/specs", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -76,7 +73,11 @@ func TestSpecsEndpointPOST(t *testing.T) {
 func TestSpecValidateEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("POST", "/api/v1/specs/validate", nil)
+	body, _ := json.Marshal(map[string]string{
+		"spec": "project: test\nmodules:\n  - name: core\n    path: ./core\n",
+	})
+	req := httptest.NewRequest("POST", "/api/v1/specs/validate", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
 	s.handleSpecValidate(w, req)
@@ -86,10 +87,40 @@ func TestSpecValidateEndpoint(t *testing.T) {
 	}
 }
 
+func TestSpecValidateEndpointInvalid(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	body, _ := json.Marshal(map[string]string{
+		"spec": "",
+	})
+	req := httptest.NewRequest("POST", "/api/v1/specs/validate", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleSpecValidate(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var resp APIResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+	data, _ := json.Marshal(resp.Data)
+	var result map[string]interface{}
+	json.Unmarshal(data, &result)
+	if result["valid"].(bool) {
+		t.Error("expected valid to be false for empty spec")
+	}
+}
+
 func TestPipelineRunEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("POST", "/api/v1/pipeline/run", nil)
+	body, _ := json.Marshal(map[string]string{
+		"spec": "project: test\nmodules:\n  - name: core\n    path: ./core\n",
+	})
+	req := httptest.NewRequest("POST", "/api/v1/pipeline/run", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
 	s.handlePipelineRun(w, req)

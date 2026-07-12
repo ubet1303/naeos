@@ -13,6 +13,25 @@ const (
 	Azure CloudProvider = "azure"
 )
 
+// ResourceTypes maps abstract resource types to supported kinds.
+const (
+	ResourceStorage  = "storage"
+	ResourceCompute  = "compute"
+	ResourceDatabase = "database"
+	ResourceCache    = "cache"
+	ResourceQueue    = "queue"
+	ResourceCDN      = "cdn"
+)
+
+var SupportedResourceTypes = []string{
+	ResourceStorage,
+	ResourceCompute,
+	ResourceDatabase,
+	ResourceCache,
+	ResourceQueue,
+	ResourceCDN,
+}
+
 type DeployConfig struct {
 	Provider    CloudProvider
 	Region      string

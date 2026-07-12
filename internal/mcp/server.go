@@ -102,10 +102,10 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 			"capabilities": map[string]any{
 				"tools": map[string]any{},
 			},
-			"serverInfo": map[string]any{
-				"name":    "naeos-mcp",
-				"version": "0.3.0",
-			},
+		"serverInfo": map[string]any{
+			"name":    "naeos-mcp",
+			"version": "0.5.0",
+		},
 		}
 	case "tools/list":
 		resp.Result = map[string]any{
@@ -304,13 +304,11 @@ func (s *Server) callTool(name string, args map[string]any) (*CallResult, error)
 		}
 		gen := s.bundle
 		b := gen.GenerateFromSpec(doc)
-		_ = b
 		targetStr, _ := args["target"].(string)
 		if targetStr == "" {
 			targetStr = "copilot"
 		}
-		text := fmt.Sprintf("Compiled for target: %s\nProject: %s\nModules: %d",
-			targetStr, doc.Project, len(doc.Modules))
+		text := fmt.Sprintf("Compiled for target: %s\n\n%s", targetStr, b.ToMarkdown())
 		return &CallResult{
 			Content: []ContentBlock{{Type: "text", Text: text}},
 		}, nil
