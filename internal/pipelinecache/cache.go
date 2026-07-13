@@ -20,10 +20,11 @@ type CacheEntry struct {
 }
 
 type Cache struct {
-	dir      string
-	entries  map[string]*CacheEntry
-	maxSize  int
-	mu       sync.RWMutex
+	dir     string
+	entries map[string]*CacheEntry
+	maxSize int
+	maxAge  time.Duration
+	mu      sync.RWMutex
 }
 
 func New(dir string, maxSize int) *Cache {
@@ -39,16 +40,29 @@ func New(dir string, maxSize int) *Cache {
 	return c
 }
 
-func (c *Cache) Get(specHash string) (*pipeline.Result, bool) {
-	c.mu.RLock()
-	entry, ok := c.entries[specHash]
-	c.mu.RUnlock()
+func (c *Cache) SetMaxAge(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.maxAge = d
+}
 
+func (c *Cache) Get(specHash string) (*pipeline.Result, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	entry, ok := c.entries[specHash]
 	if !ok {
 		return nil, false
 	}
 
+	if c.maxAge > 0 && time.Since(entry.Timestamp) > c.maxAge {
+		delete(c.entries, specHash)
+		os.Remove(filepath.Join(c.dir, specHash+".json"))
+		return nil, false
+	}
+
 	entry.HitCount++
+	entry.Timestamp = time.Now()
 	return entry.Result, true
 }
 
@@ -57,7 +71,7 @@ func (c *Cache) Set(specHash string, result *pipeline.Result) {
 	defer c.mu.Unlock()
 
 	if len(c.entries) >= c.maxSize {
-		c.evict()
+		c.evictLRU()
 	}
 
 	c.entries[specHash] = &CacheEntry{
@@ -96,18 +110,23 @@ func (c *Cache) Size() int {
 	return len(c.entries)
 }
 
-func (c *Cache) evict() {
-	var oldest string
-	var oldestTime time.Time
+func (c *Cache) evictLRU() {
+	var lruKey string
+	var lruHits int64 = -1
+	var lruTime time.Time
+
 	for key, entry := range c.entries {
-		if oldest == "" || entry.Timestamp.Before(oldestTime) {
-			oldest = key
-			oldestTime = entry.Timestamp
+		score := int64(entry.HitCount)*1000 + entry.Timestamp.UnixNano()/1e9
+		lruScore := lruHits*1000 + lruTime.UnixNano()/1e9
+		if lruKey == "" || score < lruScore {
+			lruKey = key
+			lruHits = int64(entry.HitCount)
+			lruTime = entry.Timestamp
 		}
 	}
-	if oldest != "" {
-		delete(c.entries, oldest)
-		os.Remove(filepath.Join(c.dir, oldest+".json"))
+	if lruKey != "" {
+		delete(c.entries, lruKey)
+		os.Remove(filepath.Join(c.dir, lruKey+".json"))
 	}
 }
 

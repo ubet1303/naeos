@@ -133,3 +133,104 @@ func TestCacheNoDir(t *testing.T) {
 		t.Errorf("expected 'test', got %q", got.Source)
 	}
 }
+
+func TestCacheTTLExpiration(t *testing.T) {
+	c := New(t.TempDir(), 10)
+	c.SetMaxAge(50 * time.Millisecond)
+
+	result := &pipeline.Result{Source: "ttl-test"}
+	hash := c.HashSpec("project: ttl")
+	c.Set(hash, result)
+
+	got, ok := c.Get(hash)
+	if !ok {
+		t.Fatal("expected cache hit before TTL")
+	}
+	if got.Source != "ttl-test" {
+		t.Errorf("expected 'ttl-test', got %q", got.Source)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	_, ok = c.Get(hash)
+	if ok {
+		t.Error("expected cache miss after TTL expiration")
+	}
+
+	if c.Size() != 0 {
+		t.Errorf("expected 0 entries after TTL eviction, got %d", c.Size())
+	}
+}
+
+func TestCacheTTLNotSet(t *testing.T) {
+	c := New(t.TempDir(), 10)
+
+	result := &pipeline.Result{Source: "no-ttl"}
+	hash := c.HashSpec("project: no-ttl")
+	c.Set(hash, result)
+
+	time.Sleep(10 * time.Millisecond)
+
+	got, ok := c.Get(hash)
+	if !ok {
+		t.Fatal("expected cache hit when MaxAge is zero")
+	}
+	if got.Source != "no-ttl" {
+		t.Errorf("expected 'no-ttl', got %q", got.Source)
+	}
+}
+
+func TestCacheLRUEvictionByHitCount(t *testing.T) {
+	c := New(t.TempDir(), 3)
+
+	hashLow := c.HashSpec("low-usage")
+	hashMid := c.HashSpec("mid-usage")
+	hashHigh := c.HashSpec("high-usage")
+	hashNew := c.HashSpec("new-entry")
+
+	c.Set(hashLow, &pipeline.Result{Source: "low"})
+	time.Sleep(1 * time.Millisecond)
+	c.Set(hashMid, &pipeline.Result{Source: "mid"})
+	time.Sleep(1 * time.Millisecond)
+	c.Set(hashHigh, &pipeline.Result{Source: "high"})
+
+	for i := 0; i < 10; i++ {
+		c.Get(hashHigh)
+	}
+	for i := 0; i < 5; i++ {
+		c.Get(hashMid)
+	}
+
+	c.Set(hashNew, &pipeline.Result{Source: "new"})
+
+	if c.Size() > 3 {
+		t.Errorf("expected size <= 3, got %d", c.Size())
+	}
+
+	if _, ok := c.Get(hashHigh); !ok {
+		t.Error("expected high-hit entry to survive eviction")
+	}
+	if _, ok := c.Get(hashMid); !ok {
+		t.Error("expected mid-hit entry to survive eviction")
+	}
+}
+
+func TestCacheSetMaxAgeZero(t *testing.T) {
+	c := New(t.TempDir(), 10)
+	c.SetMaxAge(50 * time.Millisecond)
+	c.SetMaxAge(0)
+
+	result := &pipeline.Result{Source: "reset"}
+	hash := c.HashSpec("project: reset")
+	c.Set(hash, result)
+
+	time.Sleep(10 * time.Millisecond)
+
+	got, ok := c.Get(hash)
+	if !ok {
+		t.Fatal("expected cache hit after resetting MaxAge to zero")
+	}
+	if got.Source != "reset" {
+		t.Errorf("expected 'reset', got %q", got.Source)
+	}
+}

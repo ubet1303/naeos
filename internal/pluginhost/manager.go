@@ -28,6 +28,7 @@ type Manager struct {
 type PluginConfig struct {
 	Plugins []PluginInfo    `json:"plugins"`
 	Sandbox SandboxConfig  `json:"sandbox,omitempty"`
+	Lazy    bool            `json:"lazy,omitempty"`
 }
 
 // NewManager creates a new PluginManager for the given directory.
@@ -36,6 +37,7 @@ func NewManager(pluginDir string) *Manager {
 		pluginDir: pluginDir,
 		plugins:   make(map[string]Plugin),
 		info:      make(map[string]*PluginInfo),
+		config:    PluginConfig{Lazy: true},
 		sandbox:   NewSandbox(SandboxConfig{}),
 		events:    NewEventBus(),
 	}
@@ -248,6 +250,7 @@ func (m *Manager) Unregister(name string) error {
 
 // LoadAll loads all enabled plugins from .so files.
 // Returns a combined error if any plugins fail to load, but continues loading others.
+// When Lazy is true, this still eagerly loads all plugins for backward compatibility.
 func (m *Manager) LoadAll(ctx *PluginContext) error {
 	m.mu.RLock()
 	pluginsCopy := make([]PluginInfo, len(m.config.Plugins))
@@ -276,6 +279,12 @@ func (m *Manager) LoadAll(ctx *PluginContext) error {
 		m.mu.Lock()
 		m.plugins[pInfo.Name] = p
 		m.updateStateLocked(pInfo.Name, StateInitialized, nil)
+		for i := range m.config.Plugins {
+			if m.config.Plugins[i].Name == pInfo.Name {
+				m.config.Plugins[i].Loaded = true
+				break
+			}
+		}
 		m.mu.Unlock()
 	}
 	if len(errs) > 0 {
@@ -336,10 +345,23 @@ func (m *Manager) ShutdownAll() error {
 }
 
 // Execute runs a plugin action with sandbox protections.
+// If lazy loading is enabled and the plugin hasn't been loaded yet,
+// it loads and initializes the plugin first.
 func (m *Manager) Execute(ctx context.Context, name, action string, params map[string]any) (any, error) {
 	p, ok := m.Get(name)
 	if !ok {
-		return nil, fmt.Errorf("plugin %s not loaded", name)
+		if m.config.Lazy {
+			pluginCtx := &PluginContext{}
+			if err := m.lazyLoad(name, pluginCtx); err != nil {
+				return nil, fmt.Errorf("lazy load plugin %s: %w", name, err)
+			}
+			p, ok = m.Get(name)
+			if !ok {
+				return nil, fmt.Errorf("plugin %s not loaded", name)
+			}
+		} else {
+			return nil, fmt.Errorf("plugin %s not loaded", name)
+		}
 	}
 	if err := m.sandbox.CheckRateLimit(name); err != nil {
 		return nil, err
@@ -362,6 +384,41 @@ func (m *Manager) Execute(ctx context.Context, name, action string, params map[s
 	m.mu.Unlock()
 
 	return result, err
+}
+
+// lazyLoad loads a single plugin by name from its .so file, initializes it,
+// and registers it in the manager.
+func (m *Manager) lazyLoad(name string, ctx *PluginContext) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i := range m.config.Plugins {
+		if m.config.Plugins[i].Name == name {
+			if m.config.Plugins[i].Loaded {
+				return nil
+			}
+			pInfo := &m.config.Plugins[i]
+			if !pInfo.Enabled || pInfo.Path == "" {
+				return fmt.Errorf("plugin %s is disabled or has no path", name)
+			}
+			if err := m.sandbox.ValidatePath(pInfo.Path); err != nil {
+				return fmt.Errorf("sandbox validation failed: %w", err)
+			}
+			p, err := m.loadGoPlugin(pInfo.Path)
+			if err != nil {
+				return fmt.Errorf("load failed: %w", err)
+			}
+			if err := p.Initialize(ctx); err != nil {
+				m.updateStateLocked(name, StateError, err)
+				return fmt.Errorf("init failed: %w", err)
+			}
+			m.plugins[name] = p
+			pInfo.Loaded = true
+			m.updateStateLocked(name, StateInitialized, nil)
+			return m.SaveConfig()
+		}
+	}
+	return fmt.Errorf("plugin %s not found", name)
 }
 
 // Cleanup calls Shutdown on all loaded plugins and releases resources.

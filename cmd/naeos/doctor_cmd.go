@@ -27,7 +27,6 @@ func newDoctorCommand() *cobra.Command {
 	var configPath string
 	var specFile string
 	var quick bool
-	var outputFormat string
 
 	cmd := &cobra.Command{
 		Use:   "doctor",
@@ -73,7 +72,7 @@ Checks include:
 				results = append(results, checkNetwork())
 			}
 
-			if outputFormat == "json" {
+			if cliOutputFormat == "json" {
 				return renderDoctorJSON(cmd, results)
 			}
 
@@ -110,7 +109,6 @@ Checks include:
 	cmd.Flags().StringVar(&configPath, "config", "", "path to config file")
 	cmd.Flags().StringVar(&specFile, "spec", "", "path to spec file for validation")
 	cmd.Flags().BoolVar(&quick, "quick", false, "skip language runtime and network checks")
-	cmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "output format: text, json")
 	return cmd
 }
 

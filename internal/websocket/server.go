@@ -1,18 +1,20 @@
 package websocket
 
 import (
-	"crypto/sha1"
-	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
-	"fmt"
-	"io"
-	"net"
+	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin:     func(r *http.Request) bool { return true },
+}
 
 type Server struct {
 	clients    map[*Client]bool
@@ -23,7 +25,7 @@ type Server struct {
 }
 
 type Client struct {
-	conn    net.Conn
+	conn    *websocket.Conn
 	server  *Server
 	send    chan []byte
 	id      string
@@ -78,14 +80,9 @@ func (s *Server) Run() {
 }
 
 func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	if !isWebSocketUpgrade(r) {
-		http.Error(w, "not a websocket request", http.StatusBadRequest)
-		return
-	}
-
-	conn, err := upgradeConnection(w, r)
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		http.Error(w, "upgrade failed", http.StatusInternalServerError)
+		slog.Error("websocket upgrade failed", "error", err)
 		return
 	}
 
@@ -122,15 +119,48 @@ func (s *Server) ClientCount() int {
 	return len(s.clients)
 }
 
+func (s *Server) Stop() {
+	s.mu.Lock()
+	for client := range s.clients {
+		client.conn.WriteMessage(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "server shutting down"))
+		close(client.send)
+		delete(s.clients, client)
+	}
+	s.mu.Unlock()
+
+	deadline := time.After(5 * time.Second)
+	for {
+		s.mu.RLock()
+		count := len(s.clients)
+		s.mu.RUnlock()
+		if count == 0 {
+			return
+		}
+		select {
+		case <-deadline:
+			return
+		default:
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+}
+
 func (c *Client) readPump() {
 	defer func() {
 		c.server.unregister <- c
 		c.conn.Close()
 	}()
 
-	for {
+	c.conn.SetReadLimit(65536)
+	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-		msg, err := readFrame(c.conn)
+		return nil
+	})
+
+	for {
+		_, msg, err := c.conn.ReadMessage()
 		if err != nil {
 			return
 		}
@@ -143,7 +173,7 @@ func (c *Client) readPump() {
 		switch incoming.Type {
 		case "ping":
 			pong, _ := json.Marshal(Message{Type: "pong", Time: time.Now()})
-			writeFrame(c.conn, pong)
+			c.conn.WriteMessage(websocket.TextMessage, pong)
 		}
 	}
 }
@@ -160,159 +190,23 @@ func (c *Client) writePump() {
 		case message, ok := <-c.send:
 			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if !ok {
-				writeCloseFrame(c.conn)
+				c.conn.WriteMessage(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				return
 			}
-			writeFrame(c.conn, message)
+			c.conn.WriteMessage(websocket.TextMessage, message)
 
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			ping, _ := json.Marshal(Message{Type: "ping", Time: time.Now()})
-			if err := writeFrame(c.conn, ping); err != nil {
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
 		}
 	}
 }
 
-// Raw WebSocket framing
-const (
-	webSocketGUID        = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-	wsOpText             = 1
-	wsOpClose            = 8
-	wsOpPing             = 9
-	wsOpPong             = 10
-	wsFinalBit           = 0x80
-	wsMaskBit            = 0x80
-	wsMaxFrameSize       = 65536
-)
-
-func isWebSocketUpgrade(r *http.Request) bool {
-	return strings.EqualFold(r.Header.Get("Connection"), "upgrade") &&
-		strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
-}
-
-func upgradeConnection(w http.ResponseWriter, r *http.Request) (net.Conn, error) {
-	key := r.Header.Get("Sec-WebSocket-Key")
-	if key == "" {
-		return nil, fmt.Errorf("missing Sec-WebSocket-Key")
-	}
-
-	h := sha1.New()
-	h.Write([]byte(key + webSocketGUID))
-	acceptKey := base64.StdEncoding.EncodeToString(h.Sum(nil))
-
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		return nil, fmt.Errorf("server does not support hijacking")
-	}
-
-	w.Header().Set("Upgrade", "websocket")
-	w.Header().Set("Connection", "Upgrade")
-	w.Header().Set("Sec-WebSocket-Accept", acceptKey)
-	w.WriteHeader(http.StatusSwitchingProtocols)
-
-	conn, _, err := hijacker.Hijack()
-	if err != nil {
-		return nil, err
-	}
-
-	return conn, nil
-}
-
-func readFrame(conn net.Conn) ([]byte, error) {
-	header := make([]byte, 2)
-	if _, err := io.ReadFull(conn, header); err != nil {
-		return nil, err
-	}
-
-	opcode := header[0] & 0x0F
-	masked := (header[1] & wsMaskBit) != 0
-	length := uint64(header[1] & 0x7F)
-
-	switch length {
-	case 126:
-		ext := make([]byte, 2)
-		if _, err := io.ReadFull(conn, ext); err != nil {
-			return nil, err
-		}
-		length = uint64(binary.BigEndian.Uint16(ext))
-	case 127:
-		ext := make([]byte, 8)
-		if _, err := io.ReadFull(conn, ext); err != nil {
-			return nil, err
-		}
-		length = binary.BigEndian.Uint64(ext)
-	}
-
-	if length > wsMaxFrameSize {
-		return nil, fmt.Errorf("frame too large: %d", length)
-	}
-
-	var mask [4]byte
-	if masked {
-		if _, err := io.ReadFull(conn, mask[:]); err != nil {
-			return nil, err
-		}
-	}
-
-	payload := make([]byte, length)
-	if _, err := io.ReadFull(conn, payload); err != nil {
-		return nil, err
-	}
-
-	if masked {
-		for i := uint64(0); i < length; i++ {
-			payload[i] ^= mask[i%4]
-		}
-	}
-
-	// Handle control frames
-	switch opcode {
-	case wsOpClose:
-		return nil, fmt.Errorf("connection closed")
-	case wsOpPing:
-		pong, _ := json.Marshal(Message{Type: "pong", Time: time.Now()})
-		writeFrame(conn, pong)
-		return readFrame(conn)
-	}
-
-	return payload, nil
-}
-
-func writeFrame(conn net.Conn, data []byte) error {
-	length := len(data)
-
-	var header []byte
-	if length < 126 {
-		header = []byte{wsFinalBit | wsOpText, byte(length)}
-	} else if length < 65536 {
-		header = make([]byte, 4)
-		header[0] = wsFinalBit | wsOpText
-		header[1] = 126
-		binary.BigEndian.PutUint16(header[2:], uint16(length))
-	} else {
-		header = make([]byte, 10)
-		header[0] = wsFinalBit | wsOpText
-		header[1] = 127
-		binary.BigEndian.PutUint64(header[2:], uint64(length))
-	}
-
-	if _, err := conn.Write(header); err != nil {
-		return err
-	}
-	_, err := conn.Write(data)
-	return err
-}
-
-func writeCloseFrame(conn net.Conn) error {
-	header := []byte{wsFinalBit | wsOpClose, 0}
-	_, err := conn.Write(header)
-	return err
-}
-
 func generateID() string {
-	return fmt.Sprintf("client-%d", time.Now().UnixNano())
+	return time.Now().Format("client-20060102150405.000000000")
 }
 
 // EventBroadcaster sends events to all connected clients

@@ -20,5 +20,7 @@ COPY --from=builder /naeos /usr/local/bin/naeos
 RUN adduser -D -u 1000 naeos
 USER naeos
 
+HEALTHCHECK --interval=30s --timeout=5s CMD naeos health || exit 1
+
 ENTRYPOINT ["naeos"]
 CMD ["--help"]

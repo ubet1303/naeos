@@ -44,6 +44,7 @@ type PluginInfo struct {
 	Author      string      `json:"author,omitempty"`
 	Path        string      `json:"path,omitempty"`
 	Enabled     bool        `json:"enabled"`
+	Loaded      bool        `json:"loaded"`
 	State       PluginState `json:"state"`
 	StartedAt   time.Time   `json:"started_at,omitempty"`
 	Error       error       `json:"error,omitempty"`

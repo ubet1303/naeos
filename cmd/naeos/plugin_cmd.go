@@ -43,14 +43,40 @@ Example:
 				fmt.Fprintln(cmd.OutOrStdout(), "No plugins installed")
 				return nil
 			}
+
+			type pluginEntry struct {
+				Name        string `json:"name" yaml:"name"`
+				Version     string `json:"version" yaml:"version"`
+				Status      string `json:"status" yaml:"status"`
+				Description string `json:"description" yaml:"description"`
+			}
+			var entries []pluginEntry
 			for _, p := range plugins {
 				status := "enabled"
 				if !p.Enabled {
 					status = "disabled"
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %-12s %s\n", p.Name, p.Version, status, p.Description)
+				entries = append(entries, pluginEntry{
+					Name:        p.Name,
+					Version:     p.Version,
+					Status:      status,
+					Description: p.Description,
+				})
 			}
-			return nil
+
+			switch cliOutputFormat {
+			case "json":
+				return FormatOutput(cmd.OutOrStdout(), entries, "json")
+			case "yaml":
+				return FormatOutput(cmd.OutOrStdout(), entries, "yaml")
+			default:
+				headers := []string{"NAME", "VERSION", "STATUS", "DESCRIPTION"}
+				var rows [][]string
+				for _, e := range entries {
+					rows = append(rows, []string{e.Name, e.Version, e.Status, e.Description})
+				}
+				return FormatTable(cmd.OutOrStdout(), headers, rows)
+			}
 		},
 	}
 

@@ -145,3 +145,80 @@ func TestMethodNotAllowed(t *testing.T) {
 		t.Errorf("expected status 405, got %d", w.Code)
 	}
 }
+
+func TestOIDCDiscovery(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: true, JWTSecret: "test-secret"})
+
+	req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
+	req.Host = "localhost:8080"
+	w := httptest.NewRecorder()
+
+	s.handleOIDCDiscovery(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var doc OIDCDiscovery
+	if err := json.NewDecoder(w.Body).Decode(&doc); err != nil {
+		t.Fatalf("failed to decode OIDC discovery: %v", err)
+	}
+
+	if doc.Issuer != "http://localhost:8080" {
+		t.Errorf("expected issuer 'http://localhost:8080', got %s", doc.Issuer)
+	}
+
+	if doc.JWKSURI != "http://localhost:8080/.well-known/jwks.json" {
+		t.Errorf("expected jwks_uri 'http://localhost:8080/.well-known/jwks.json', got %s", doc.JWKSURI)
+	}
+
+	if len(doc.IDTokenSigningAlgValuesSupported) != 1 || doc.IDTokenSigningAlgValuesSupported[0] != "HS256" {
+		t.Errorf("expected HS256 signing alg, got %v", doc.IDTokenSigningAlgValuesSupported)
+	}
+}
+
+func TestOIDCDiscoveryNotConfigured(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
+	w := httptest.NewRecorder()
+
+	s.handleOIDCDiscovery(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", w.Code)
+	}
+}
+
+func TestJWKS(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: true, JWTSecret: "test-secret"})
+
+	req := httptest.NewRequest("GET", "/.well-known/jwks.json", nil)
+	w := httptest.NewRecorder()
+
+	s.handleJWKS(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var jwks JWKS
+	if err := json.NewDecoder(w.Body).Decode(&jwks); err != nil {
+		t.Fatalf("failed to decode JWKS: %v", err)
+	}
+
+	if len(jwks.Keys) != 1 {
+		t.Fatalf("expected 1 key, got %d", len(jwks.Keys))
+	}
+
+	key := jwks.Keys[0]
+	if key.Kty != "oct" {
+		t.Errorf("expected kty 'oct', got %s", key.Kty)
+	}
+	if key.Alg != "HS256" {
+		t.Errorf("expected alg 'HS256', got %s", key.Alg)
+	}
+	if key.Use != "sig" {
+		t.Errorf("expected use 'sig', got %s", key.Use)
+	}
+}

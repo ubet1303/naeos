@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,13 +14,16 @@ import (
 	"time"
 
 	"github.com/NAEOS-foundation/naeos/internal/artifacts"
+	"github.com/NAEOS-foundation/naeos/internal/audit"
 	"github.com/NAEOS-foundation/naeos/internal/cloud"
 	"github.com/NAEOS-foundation/naeos/internal/compiler"
 	contextbundle "github.com/NAEOS-foundation/naeos/internal/context/bundle"
 	"github.com/NAEOS-foundation/naeos/internal/errors"
+	"github.com/NAEOS-foundation/naeos/internal/monitoring"
 	"github.com/NAEOS-foundation/naeos/internal/pluginhost"
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 	"github.com/NAEOS-foundation/naeos/internal/version"
+	naeosws "github.com/NAEOS-foundation/naeos/internal/websocket"
 )
 
 type Server struct {
@@ -28,6 +31,8 @@ type Server struct {
 	Router      *http.ServeMux
 	server      *http.Server
 	Auth        *AuthConfig
+	CORS        *CORSConfig
+	MaxBodySize int64
 	Limiter     *RateLimiter
 	APIKeys     map[string]*RateLimiter
 	apiKeysMu   sync.RWMutex
@@ -40,8 +45,11 @@ type Server struct {
 	pipelineJobs map[string]*pipelineJob
 	jobsMu      sync.RWMutex
 	deployments []cloudDeployment
-	deployMu    sync.RWMutex
-	plugins     *pluginhost.Manager
+	deployMu       sync.RWMutex
+	plugins        *pluginhost.Manager
+	metricsRegistry *monitoring.Registry
+	auditor        audit.Auditor
+	wsServer       *naeosws.Server
 }
 
 type pipelineRun struct {
@@ -75,6 +83,13 @@ type AuthConfig struct {
 	Enabled   bool
 }
 
+type CORSConfig struct {
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
+	AllowCredentials bool
+}
+
 type APIResponse struct {
 	Success bool        `json:"success"`
 	Data    interface{} `json:"data,omitempty"`
@@ -82,18 +97,35 @@ type APIResponse struct {
 }
 
 type ErrorResponse struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Error   string      `json:"error"`
+	Message string      `json:"message"`
+	Details interface{} `json:"details,omitempty"`
 }
 
 func NewServer(addr string, auth *AuthConfig) *Server {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
+
 	store := artifacts.NewStore(".naeos/artifacts")
 	_ = store.LoadFromDisk()
 
+	metrics := monitoring.NewMetrics()
+
 	s := &Server{
-		Addr:        addr,
-		Router:      http.NewServeMux(),
-		Auth:        auth,
+		Addr:  addr,
+		Router: http.NewServeMux(),
+		Auth:  auth,
+		CORS: &CORSConfig{
+			AllowedOrigins: []string{
+				"http://localhost:3000",
+				"http://localhost:5173",
+				"http://localhost:8080",
+			},
+			AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			AllowedHeaders: []string{"Content-Type", "Authorization"},
+		},
+		MaxBodySize: 10 << 20,
 		Limiter:     NewRateLimiter(100, time.Minute),
 		APIKeys:     make(map[string]*RateLimiter),
 		parser:      parser.NewParser(),
@@ -108,11 +140,47 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 	}
 	s.bundle = contextbundle.NewGenerator(s.compiler)
 
+	s.metricsRegistry = metrics.Registry()
+	s.auditor = audit.NewMemoryAuditor()
 	s.setupRoutes()
 	return s
 }
 
+func (s *Server) auditEvent(r *http.Request, action, resource, resourceID, status, details string) {
+	if s.auditor == nil {
+		return
+	}
+	userID := ""
+	ip := ""
+	ua := ""
+	if r != nil {
+		if uid := r.Header.Get("X-User-ID"); uid != "" {
+			userID = uid
+		}
+		ip = r.RemoteAddr
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			ip = fwd
+		}
+		ua = r.UserAgent()
+	}
+	_ = s.auditor.Log(audit.AuditEvent{
+		UserID:     userID,
+		Action:     action,
+		Resource:   resource,
+		ResourceID: resourceID,
+		IP:         ip,
+		UserAgent:  ua,
+		Status:     status,
+		Details:    details,
+	})
+}
+
 func (s *Server) setupRoutes() {
+	// Monitoring endpoints
+	s.Router.HandleFunc("/metrics", s.handleMetrics)
+	s.Router.HandleFunc("/healthz", s.handleHealthz)
+	s.Router.HandleFunc("/readyz", s.handleReadyz)
+
 	// Health
 	s.Router.HandleFunc("/api/v1/health", s.handleHealth)
 
@@ -143,12 +211,20 @@ func (s *Server) setupRoutes() {
 	// Plugin endpoints
 	s.Router.HandleFunc("/api/v1/plugins", s.handlePlugins)
 	s.Router.HandleFunc("/api/v1/plugins/execute", s.handlePluginExecute)
-	s.Router.HandleFunc("/api/v1/plugins/uninstall", s.handlePluginUninstall)
+	s.Router.HandleFunc("/api/v1/plugins/", s.handlePluginByName)
 
 	// System endpoints
 	s.Router.HandleFunc("/api/v1/version", s.handleVersion)
 	s.Router.HandleFunc("/api/v1/config/schema", s.handleConfigSchema)
 	s.Router.HandleFunc("/api/v1/pipelines", s.handlePipelines)
+
+	// OIDC discovery
+	s.Router.HandleFunc("/.well-known/openid-configuration", s.handleOIDCDiscovery)
+	s.Router.HandleFunc("/.well-known/jwks.json", s.handleJWKS)
+}
+
+func (s *Server) SetWebSocketServer(ws *naeosws.Server) {
+	s.wsServer = ws
 }
 
 func (s *Server) RegisterAPIKey(key string, requestsPerSecond int) {
@@ -159,6 +235,29 @@ func (s *Server) RegisterAPIKey(key string, requestsPerSecond int) {
 
 func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Request ID
+		requestID := r.Header.Get("X-Request-ID")
+		if requestID == "" {
+			requestID = GenerateRequestID()
+		}
+		r = r.WithContext(ContextWithRequestID(r.Context(), requestID))
+		w.Header().Set("X-Request-ID", requestID)
+
+		// Body size limit for methods that carry a payload
+		if r.Method == "POST" || r.Method == "PUT" || r.Method == "PATCH" {
+			if s.MaxBodySize > 0 {
+				exceeded := false
+				r.Body = &maxBytesBody{
+					ReadCloser: http.MaxBytesReader(w, r.Body, s.MaxBodySize),
+					exceeded:   &exceeded,
+				}
+				w = &maxBytesResponseWriter{
+					ResponseWriter: w,
+					exceeded:       &exceeded,
+				}
+			}
+		}
+
 		// Rate limit - check API key first, fall back to IP
 		clientID := r.RemoteAddr
 		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
@@ -189,12 +288,33 @@ func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFun
 		}
 
 		// CORS
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		origin := r.Header.Get("Origin")
+		if s.CORS != nil && originAllowed(origin, s.CORS.AllowedOrigins) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			if s.CORS.AllowCredentials {
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+		} else if s.CORS == nil {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+		methods := "GET, POST, PUT, DELETE, OPTIONS"
+		headers := "Content-Type, Authorization, X-Request-ID"
+		if s.CORS != nil {
+			if len(s.CORS.AllowedMethods) > 0 {
+				methods = joinStrings(s.CORS.AllowedMethods)
+			}
+			if len(s.CORS.AllowedHeaders) > 0 {
+				headers = joinStrings(s.CORS.AllowedHeaders)
+				if !containsHeader(s.CORS.AllowedHeaders, "X-Request-ID") {
+					headers += ", X-Request-ID"
+				}
+			}
+		}
+		w.Header().Set("Access-Control-Allow-Methods", methods)
+		w.Header().Set("Access-Control-Allow-Headers", headers)
 
 		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
@@ -215,8 +335,18 @@ func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFun
 			}
 		}
 
+		slog.Info("request", "method", r.Method, "path", r.URL.Path, "request_id", requestID)
 		handler(w, r)
 	}
+}
+
+func containsHeader(headers []string, target string) bool {
+	for _, h := range headers {
+		if strings.EqualFold(h, target) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, status int, data interface{}) {
@@ -234,6 +364,10 @@ func (s *Server) writeError(w http.ResponseWriter, status int, message string) {
 	json.NewEncoder(w).Encode(APIResponse{
 		Success: false,
 		Error:   message,
+		Data: ErrorResponse{
+			Error:   http.StatusText(status),
+			Message: message,
+		},
 	})
 }
 
@@ -819,15 +953,43 @@ func (s *Server) handleCloudStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePlugins(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
+	switch r.Method {
+	case "GET":
+		plugins := s.plugins.List()
+		s.writeJSON(w, http.StatusOK, map[string]interface{}{
+			"plugins": plugins,
+			"count":   len(plugins),
+		})
+	case "POST":
+		var req struct {
+			Name    string `json:"name"`
+			Source  string `json:"source"`
+			Version string `json:"version"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if req.Name == "" || req.Source == "" {
+			s.writeError(w, http.StatusBadRequest, "name and source are required")
+			return
+		}
+		info, err := s.plugins.Install(req.Source)
+		if err != nil {
+			s.writeError(w, http.StatusInternalServerError, "install failed: "+err.Error())
+			return
+		}
+		s.writeJSON(w, http.StatusCreated, map[string]interface{}{
+			"name":         info.Name,
+			"version":      info.Version,
+			"description":  info.Description,
+			"kind":         "native",
+			"enabled":      info.Enabled,
+			"installed_at": info.StartedAt.Format(time.RFC3339),
+		})
+	default:
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
 	}
-	plugins := s.plugins.List()
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"plugins": plugins,
-		"count":   len(plugins),
-	})
 }
 
 func (s *Server) handlePluginExecute(w http.ResponseWriter, r *http.Request) {
@@ -865,25 +1027,37 @@ func (s *Server) handlePluginExecute(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handlePluginUninstall(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "DELETE" {
-		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	name := strings.TrimPrefix(r.URL.Path, "/api/v1/plugins/uninstall/")
+func (s *Server) handlePluginByName(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/api/v1/plugins/")
 	if name == "" {
 		s.writeError(w, http.StatusBadRequest, errors.New(errors.ErrValidation, "plugin name is required").Error())
 		return
 	}
 
-	if err := s.plugins.Uninstall(name); err != nil {
-		s.writeError(w, http.StatusInternalServerError, errors.Wrap(errors.ErrPlugin, "uninstall failed", err).Error())
-		return
+	switch r.Method {
+	case "GET":
+		info, ok := s.plugins.GetInfo(name)
+		if !ok {
+			s.writeError(w, http.StatusNotFound, fmt.Sprintf("plugin %s not found", name))
+			return
+		}
+		s.writeJSON(w, http.StatusOK, map[string]interface{}{
+			"name":         info.Name,
+			"version":      info.Version,
+			"description":  info.Description,
+			"kind":         "native",
+			"enabled":      info.Enabled,
+			"installed_at": info.StartedAt.Format(time.RFC3339),
+		})
+	case "DELETE":
+		if err := s.plugins.Uninstall(name); err != nil {
+			s.writeError(w, http.StatusNotFound, fmt.Sprintf("plugin %s not found", name))
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
-
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": fmt.Sprintf("plugin %s uninstalled", name),
-	})
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
@@ -915,10 +1089,73 @@ func (s *Server) handlePipelines(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) issuerFromRequest(r *http.Request) string {
+	issuer := fmt.Sprintf("http://%s", r.Host)
+	if fwd := r.Header.Get("X-Forwarded-Host"); fwd != "" {
+		issuer = fmt.Sprintf("http://%s", fwd)
+	}
+	return issuer
+}
+
+func (s *Server) handleOIDCDiscovery(w http.ResponseWriter, r *http.Request) {
+	if s.jwt == nil {
+		s.writeError(w, http.StatusNotFound, "OIDC not configured")
+		return
+	}
+	issuer := s.issuerFromRequest(r)
+	doc := s.jwt.OIDCDiscoveryDocument(issuer)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(doc)
+}
+
+func (s *Server) handleJWKS(w http.ResponseWriter, r *http.Request) {
+	if s.jwt == nil {
+		s.writeError(w, http.StatusNotFound, "JWKS not configured")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(JWKS{Keys: []JWK{*s.jwt.JWKS()}})
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	w.Write([]byte(s.metricsRegistry.FormatPrometheus()))
+}
+
+func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"status":"healthy","timestamp":"%s"}`, time.Now().Format(time.RFC3339))
+}
+
+func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"status":"ready"}`)
+}
+
+func originAllowed(origin string, allowed []string) bool {
+	for _, a := range allowed {
+		if a == "*" || a == origin {
+			return true
+		}
+	}
+	return false
+}
+
+func joinStrings(ss []string) string {
+	result := ""
+	for i, s := range ss {
+		if i > 0 {
+			result += ", "
+		}
+		result += s
+	}
+	return result
+}
+
 var startTime = time.Now()
 
 func (s *Server) Start() error {
-	wrappedHandler := s.handlerWithMiddleware(s.Router.ServeHTTP)
+	wrappedHandler := s.loggingMiddleware(s.handlerWithMiddleware(s.Router.ServeHTTP))
 
 	s.server = &http.Server{
 		Addr:         s.Addr,
@@ -934,17 +1171,23 @@ func (s *Server) Start() error {
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigChan
 
-		log.Println("Shutting down server...")
+		slog.Warn("shutting down server", "component", "api-server")
+		if s.wsServer != nil {
+			s.wsServer.Stop()
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		s.server.Shutdown(ctx)
 	}()
 
-	log.Printf("Starting NAEOS API server on %s", s.Addr)
+	slog.Info("starting NAEOS API server", "addr", s.Addr, "component", "api-server")
 	return s.server.ListenAndServe()
 }
 
 func (s *Server) Stop() error {
+	if s.wsServer != nil {
+		s.wsServer.Stop()
+	}
 	if s.server != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

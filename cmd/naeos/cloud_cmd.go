@@ -318,11 +318,18 @@ func newCloudTypesCommand() *cobra.Command {
 		Use:   "types",
 		Short: "List supported resource types",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Supported resource types:")
-			for _, t := range cloud.SupportedResourceTypes {
-				fmt.Printf("  - %s\n", t)
+			switch cliOutputFormat {
+			case "json":
+				return FormatOutput(cmd.OutOrStdout(), cloud.SupportedResourceTypes, "json")
+			case "yaml":
+				return FormatOutput(cmd.OutOrStdout(), cloud.SupportedResourceTypes, "yaml")
+			default:
+				fmt.Println("Supported resource types:")
+				for _, t := range cloud.SupportedResourceTypes {
+					fmt.Printf("  - %s\n", t)
+				}
+				return nil
 			}
-			return nil
 		},
 	}
 }

@@ -12,8 +12,6 @@ import (
 )
 
 func newHealthCommand() *cobra.Command {
-	outputFormat := "text"
-
 	cmd := &cobra.Command{
 		Use:   "health",
 		Short: "Run system health checks and diagnostics",
@@ -22,31 +20,30 @@ configuration, and dependencies.
 
 Example:
   naeos health
-  naeos health --output json
-  naeos health --output yaml`,
+  naeos health -o json
+  naeos health -o yaml`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			report := runHealthChecks()
-			return renderHealthReport(cmd, report, outputFormat)
+			return renderHealthReport(cmd, report, cliOutputFormat)
 		},
 	}
 
-	cmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "output format: text, json, yaml")
 	return cmd
 }
 
 type HealthCheck struct {
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	Message string `json:"message,omitempty"`
+	Name    string `json:"name" yaml:"name"`
+	Status  string `json:"status" yaml:"status"`
+	Message string `json:"message,omitempty" yaml:"message,omitempty"`
 }
 
 type HealthReport struct {
-	Status   string        `json:"status"`
-	Version  string        `json:"version"`
-	Go       string        `json:"go_version"`
-	Platform string        `json:"platform"`
-	Checks   []HealthCheck `json:"checks"`
+	Status   string        `json:"status" yaml:"status"`
+	Version  string        `json:"version" yaml:"version"`
+	Go       string        `json:"go_version" yaml:"go_version"`
+	Platform string        `json:"platform" yaml:"platform"`
+	Checks   []HealthCheck `json:"checks" yaml:"checks"`
 }
 
 func runHealthChecks() *HealthReport {
@@ -113,26 +110,9 @@ func checkVersionFile() HealthCheck {
 func renderHealthReport(cmd *cobra.Command, report *HealthReport, format string) error {
 	switch format {
 	case "json":
-		cmd.OutOrStdout().Write([]byte(fmt.Sprintf(`{"status":"%s","version":"%s","go_version":"%s","platform":"%s","checks":[`, report.Status, report.Version, report.Go, report.Platform)))
-		for i, c := range report.Checks {
-			if i > 0 {
-				cmd.OutOrStdout().Write([]byte(","))
-			}
-			msg := ""
-			if c.Message != "" {
-				msg = fmt.Sprintf(`,"message":"%s"`, c.Message)
-			}
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf(`{"name":"%s","status":"%s"%s}`, c.Name, c.Status, msg)))
-		}
-		cmd.OutOrStdout().Write([]byte("]}\n"))
+		return FormatOutput(cmd.OutOrStdout(), report, "json")
 	case "yaml":
-		cmd.OutOrStdout().Write([]byte(fmt.Sprintf("status: %s\nversion: %s\ngo_version: %s\nplatform: %s\nchecks:\n", report.Status, report.Version, report.Go, report.Platform)))
-		for _, c := range report.Checks {
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  - name: %s\n    status: %s\n", c.Name, c.Status)))
-			if c.Message != "" {
-				cmd.OutOrStdout().Write([]byte(fmt.Sprintf("    message: %s\n", c.Message)))
-			}
-		}
+		return FormatOutput(cmd.OutOrStdout(), report, "yaml")
 	default:
 		cmd.OutOrStdout().Write([]byte("NAEOS Health Report\n"))
 		cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Status: %s | Version: %s | Go: %s | %s\n", report.Status, report.Version, report.Go, report.Platform)))

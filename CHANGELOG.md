@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-13
+
+### Added
+- **Structured logging** (`log/slog`):
+  - Replaced all `log.Println`/`log.Printf` with `slog.Info`, `slog.Error`, `slog.Warn`.
+  - JSON handler with structured fields: method, path, status, duration, request_id, component.
+  - Log level adapts by HTTP status (error for 5xx, warn for 4xx).
+- **Request body size limits**:
+  - `MaxBytesReader` on all POST/PUT/PATCH requests (default 10MB).
+  - HTTP 413 Payload Too Large response on exceed.
+- **X-Request-ID propagation**:
+  - UUID v4 generated per request if not provided in `X-Request-ID` header.
+  - Propagated in response headers, logs, and context.
+- **Configurable CORS**:
+  - `CORSConfig` struct with `AllowedOrigins`, `AllowedMethods`, `AllowedHeaders`, `AllowCredentials`.
+  - Configurable per-server, defaults to localhost origins.
+  - Proper OPTIONS preflight handling (204 No Content).
+- **Prometheus metrics endpoint**: `GET /metrics` (text format), `GET /healthz` (liveness), `GET /readyz` (readiness).
+- **Real OAuth2 token exchange**:
+  - Google: POST to `oauth2.googleapis.com/token`, GET `googleapis.com/oauth2/v2/userinfo`.
+  - GitHub: POST to `github.com/login/oauth/access_token`, GET `api.github.com/user`.
+- **RBAC enforcement**: `RBACMiddleware` wires JWT user → role → permission check per endpoint.
+- **Audit logging** (`internal/audit/`):
+  - `AuditEvent` struct with ID, Timestamp, UserID, Action, Resource, IP, UserAgent.
+  - `FileAuditor` (JSON lines to `~/.naeos/audit.log`), `MemoryAuditor` for testing.
+  - Wired into POST/DELETE handlers and cloud operations.
+- **OIDC discovery endpoint**: `GET /.well-known/openid-configuration` and `GET /.well-known/jwks.json`.
+- **GoReleaser release workflow** (`.goreleaser.yaml` + `.github/workflows/release-goreleaser.yml`).
+- **Interactive CLI mode** (`naeos tui`): Guided wizard for spec creation with prompts.
+- **Global `--output-format` flag** (`-o json|yaml|table`): Supported across cloud types, plugin list, history, status, health, doctor.
+- **Pipeline cache improvements**:
+  - TTL-based expiration via `SetMaxAge()`.
+  - LRU eviction by hit count (not just oldest timestamp).
+- **Parallel spec parsing**: `errgroup`-based concurrent module normalization (configurable via `Parallel` field).
+- **Cloud adapter connection pooling**: `RunnerPool` caches TerraformRunner instances, avoids repeated `terraform init`.
+- **OIDC discovery**: `/.well-known/openid-configuration` and `/.well-known/jwks.json` endpoints.
+- **Graceful WebSocket draining**: `Stop()` sends close frames, waits up to 5s for client disconnect.
+- **gorilla/websocket integration**: Replaced custom WebSocket framing with battle-tested library.
+- **Lazy plugin loading**: Plugins loaded on first `Execute()` call instead of startup.
+- **Shell completion install**: `make install-completion` for bash/zsh/fish.
+- **Docker improvements**:
+  - `HEALTHCHECK` instruction in Dockerfile.
+  - `.dockerignore` excluding docs, tests, git.
+  - Multi-arch buildx support (`make docker`).
+  - `make docker-local` for single-arch.
+- **CI improvements**:
+  - Codecov coverage reporting.
+  - Expanded golangci-lint (16 linters: gosec, gocritic, bodyclose, errorlint, etc.).
+- **API ↔ OpenAPI alignment**: Fixed DELETE path mismatches, added missing endpoints.
+- **Cleanup**: Removed empty `api/handlers/` and `api/middleware/` directories.
+
+### Changed
+- Version bumped to 0.9.0.
+- 104 packages pass, `go vet` clean, `go build` clean.
+
 ## [0.8.0] - 2026-07-13
 
 ### Added

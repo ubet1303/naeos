@@ -156,17 +156,28 @@ func (a *AzureAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 		return nil, err
 	}
 
-	workDir, err := TempWorkDir("naeos-azure")
-	if err != nil {
-		return nil, err
-	}
-
-	tr := NewTerraformRunner(workDir)
-	if a.Runner != nil {
-		tr.Runner = a.Runner
-	}
-	if err := tr.Deploy(tf); err != nil {
-		return nil, err
+	pool := GetDefaultPool()
+	tr, pooled := pool.Get(config.Project, Azure)
+	if pooled {
+		if err := tr.writeHCL(tf); err != nil {
+			return nil, err
+		}
+		if err := tr.Apply(); err != nil {
+			return nil, err
+		}
+	} else {
+		workDir, err := TempWorkDir("naeos-azure")
+		if err != nil {
+			return nil, err
+		}
+		tr = NewTerraformRunner(workDir)
+		if a.Runner != nil {
+			tr.Runner = a.Runner
+		}
+		if err := tr.Deploy(tf); err != nil {
+			return nil, err
+		}
+		pool.Put(config.Project, Azure, tr, true)
 	}
 
 	deployed := []DeployedResource{}
@@ -193,7 +204,7 @@ func (a *AzureAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 		Environment:  config.Environment,
 		Region:       config.Region,
 		Resources:    deployed,
-		TerraformDir: workDir,
+		TerraformDir: tr.WorkDir,
 		Timestamp:    result.Timestamp,
 		Status:       "deployed",
 	})
@@ -202,6 +213,16 @@ func (a *AzureAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 }
 
 func (a *AzureAdapter) Destroy(config *DeployConfig) error {
+	pool := GetDefaultPool()
+	if tr, pooled := pool.Get(config.Project, Azure); pooled {
+		if err := tr.ApplyDestroy(); err == nil {
+			pool.Remove(config.Project, Azure)
+			sm := NewStateManager()
+			sm.Delete(config.Project, Azure)
+			return nil
+		}
+	}
+
 	sm := NewStateManager()
 	record, err := sm.Load(config.Project, Azure)
 	if err == nil && record.TerraformDir != "" {

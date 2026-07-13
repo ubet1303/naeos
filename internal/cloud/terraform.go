@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	naeoserrors "github.com/NAEOS-foundation/naeos/internal/errors"
 )
@@ -186,4 +188,124 @@ func TempWorkDir(prefix string) (string, error) {
 		return "", naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to create temp directory", err)
 	}
 	return dir, nil
+}
+
+type poolEntry struct {
+	runner    *TerraformRunner
+	lastUsed  time.Time
+	initDone  bool
+}
+
+type RunnerPool struct {
+	mu       sync.RWMutex
+	entries  map[string]*poolEntry
+	maxSize  int
+	idleTTL  time.Duration
+}
+
+func NewRunnerPool(maxSize int, idleTTL time.Duration) *RunnerPool {
+	if maxSize <= 0 {
+		maxSize = 16
+	}
+	if idleTTL <= 0 {
+		idleTTL = 30 * time.Minute
+	}
+	p := &RunnerPool{
+		entries: make(map[string]*poolEntry),
+		maxSize: maxSize,
+		idleTTL: idleTTL,
+	}
+	go p.cleanupLoop()
+	return p
+}
+
+func poolKey(project string, provider CloudProvider) string {
+	return fmt.Sprintf("%s:%s", project, provider)
+}
+
+func (p *RunnerPool) Get(project string, provider CloudProvider) (*TerraformRunner, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	key := poolKey(project, provider)
+	entry, ok := p.entries[key]
+	if !ok {
+		return nil, false
+	}
+	entry.lastUsed = time.Now()
+	return entry.runner, true
+}
+
+func (p *RunnerPool) Put(project string, provider CloudProvider, runner *TerraformRunner, initDone bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	key := poolKey(project, provider)
+	if len(p.entries) >= p.maxSize {
+		p.evictOldest()
+	}
+
+	p.entries[key] = &poolEntry{
+		runner:   runner,
+		lastUsed: time.Now(),
+		initDone: initDone,
+	}
+}
+
+func (p *RunnerPool) Remove(project string, provider CloudProvider) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	key := poolKey(project, provider)
+	delete(p.entries, key)
+}
+
+func (p *RunnerPool) Size() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return len(p.entries)
+}
+
+func (p *RunnerPool) evictOldest() {
+	var oldestKey string
+	var oldestTime time.Time
+	for key, entry := range p.entries {
+		if oldestKey == "" || entry.lastUsed.Before(oldestTime) {
+			oldestKey = key
+			oldestTime = entry.lastUsed
+		}
+	}
+	if oldestKey != "" {
+		delete(p.entries, oldestKey)
+	}
+}
+
+func (p *RunnerPool) cleanupLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		p.cleanup()
+	}
+}
+
+func (p *RunnerPool) cleanup() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	now := time.Now()
+	for key, entry := range p.entries {
+		if now.Sub(entry.lastUsed) > p.idleTTL {
+			delete(p.entries, key)
+		}
+	}
+}
+
+var defaultPool *RunnerPool
+var defaultPoolOnce sync.Once
+
+func GetDefaultPool() *RunnerPool {
+	defaultPoolOnce.Do(func() {
+		defaultPool = NewRunnerPool(16, 30*time.Minute)
+	})
+	return defaultPool
 }

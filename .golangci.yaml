@@ -7,9 +7,35 @@ linters:
     - gosimple
     - ineffassign
     - typecheck
+    - gosec
+    - gocritic
+    - bodyclose
+    - noctx
+    - errorlint
+    - unconvert
+    - unparam
+    - misspell
+    - gofmt
+
+linters-settings:
+  gosec:
+    excludes:
+      - G104  # unhandled errors on deferred close
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
 
 run:
   timeout: 5m
+  skip-dirs:
+    - vendor
+    - docs
+    - scripts
 
 issues:
   exclude-generated: true

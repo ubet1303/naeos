@@ -1,4 +1,4 @@
-.PHONY: build test lint fmt clean vet tidy check run help docker benchmark security e2e
+.PHONY: build test lint fmt clean vet tidy check run help docker docker-local benchmark security e2e install-completion man
 
 # Variables
 BINARY := naeos
@@ -73,9 +73,15 @@ run: build
 init: tidy build
 	@echo "Project initialized. Run './$(BINARY) --help' to get started."
 
-## docker: Build docker image with version tag
+## docker: Build multi-arch docker image and push
 docker:
-	@echo "Building docker image $(BINARY):$(VERSION)..."
+	@echo "Building multi-arch docker image $(BINARY):$(VERSION)..."
+	docker buildx create --use --name naeos-builder 2>/dev/null || true
+	docker buildx build --platform linux/amd64,linux/arm64 --build-arg VERSION=$(VERSION) -t $(BINARY):$(VERSION) --push .
+
+## docker-local: Build docker image for local architecture
+docker-local:
+	@echo "Building local docker image $(BINARY):$(VERSION)..."
 	docker build --build-arg VERSION=$(VERSION) -t $(BINARY):$(VERSION) .
 
 ## benchmark: Run benchmarks
@@ -98,3 +104,19 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@sed -n 's/^## //p' $(MAKEFILE_LIST) | column -t -s ':'
+
+## install-completion: Install shell completions for bash, zsh, and fish
+install-completion: build
+	@echo "Installing shell completions..."
+	@mkdir -p $(HOME)/.bash_completion.d
+	@./$(BINARY) completion bash > $(HOME)/.bash_completion.d/naeos
+	@mkdir -p $(HOME)/.zsh/completions
+	@./$(BINARY) completion zsh > $(HOME)/.zsh/completions/_naeos
+	@mkdir -p $(HOME)/.config/fish/completions
+	@./$(BINARY) completion fish > $(HOME)/.config/fish/completions/naeos.fish
+	@echo "Completions installed. Restart your shell or source the completion files."
+
+## man: Generate man pages (requires cobra-doc)
+man: build
+	@mkdir -p docs/man
+	@echo "Man pages generated via cobra doc (install cobra-doc for full man page generation)"

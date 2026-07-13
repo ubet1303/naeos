@@ -1,6 +1,9 @@
 package api
 
 import (
+	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -98,4 +101,71 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rec *statusRecorder) WriteHeader(code int) {
+	rec.status = code
+	rec.ResponseWriter.WriteHeader(code)
+}
+
+func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+
+		next.ServeHTTP(rec, r)
+
+		duration := time.Since(start)
+		level := slog.LevelInfo
+		if rec.status >= 500 {
+			level = slog.LevelError
+		} else if rec.status >= 400 {
+			level = slog.LevelWarn
+		}
+		slog.LogAttrs(r.Context(), level, "request completed",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Int("status", rec.status),
+			slog.String("duration", duration.String()),
+			slog.String("request_id", RequestIDFromContext(r.Context())),
+			slog.String("component", "api-server"),
+		)
+	})
+}
+
+type maxBytesBody struct {
+	io.ReadCloser
+	exceeded *bool
+}
+
+func (b *maxBytesBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			*b.exceeded = true
+		}
+	}
+	return n, err
+}
+
+type maxBytesResponseWriter struct {
+	http.ResponseWriter
+	exceeded *bool
+}
+
+func (mw *maxBytesResponseWriter) WriteHeader(code int) {
+	if *mw.exceeded {
+		code = http.StatusRequestEntityTooLarge
+	}
+	mw.ResponseWriter.WriteHeader(code)
+}
+
+func (mw *maxBytesResponseWriter) Unwrap() http.ResponseWriter {
+	return mw.ResponseWriter
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/NAEOS-foundation/naeos/internal/generation/adapters"
@@ -26,6 +27,7 @@ import (
 	naeoslog "github.com/NAEOS-foundation/naeos/internal/shared/log"
 	cfgpkg "github.com/NAEOS-foundation/naeos/pkg/config"
 	"github.com/NAEOS-foundation/naeos/pkg/kernel"
+	"golang.org/x/sync/errgroup"
 )
 
 type Config struct {
@@ -35,6 +37,7 @@ type Config struct {
 	DryRun     bool
 	OutputDir  string
 	Languages  []string
+	Parallel   *bool
 	Parser     parser.Parser
 	Normalizer normalizer.Normalizer
 	Resolver   resolver.Resolver
@@ -90,6 +93,7 @@ type Pipeline struct {
 	languages      []string
 	verbose        bool
 	dryRun         bool
+	parallel       bool
 	hooks          *Hooks
 }
 
@@ -124,6 +128,10 @@ func ConfigFromFile(path string) (Config, error) {
 }
 
 func New(cfg Config) (*Pipeline, error) { //nolint:gocritic // Public API, value semantics preferred
+	parallel := true
+	if cfg.Parallel != nil {
+		parallel = *cfg.Parallel
+	}
 	p := &Pipeline{
 		name:           cfg.Name,
 		parser:         cfg.Parser,
@@ -144,6 +152,7 @@ func New(cfg Config) (*Pipeline, error) { //nolint:gocritic // Public API, value
 		languages:      cfg.Languages,
 		verbose:        cfg.Verbose,
 		dryRun:         cfg.DryRun,
+		parallel:       parallel,
 		hooks:          cfg.Hooks,
 	}
 
@@ -369,7 +378,12 @@ func (p *Pipeline) validateWithoutKernel(input string) (*Result, error) {
 	}
 
 	p.logVerbose("normalizing specification")
-	normalized, err := p.normalizer.Normalize(parsed)
+	var normalized *normalizer.NormalizedSpec
+	if p.parallel && parsed != nil && len(parsed.Modules) > 1 {
+		normalized, err = p.normalizeParallel(parsed)
+	} else {
+		normalized, err = p.normalizer.Normalize(parsed)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -406,6 +420,145 @@ func (p *Pipeline) validateWithoutKernel(input string) (*Result, error) {
 	}
 	_ = p.emitKernelEvent("pipeline.validate", map[string]any{"source_len": len(result.Source)})
 	return result, nil
+}
+
+func (p *Pipeline) normalizeParallel(parsed *parser.SpecDocument) (*normalizer.NormalizedSpec, error) {
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(runtime.GOMAXPROCS(0))
+
+	type moduleResult struct {
+		index int
+		entry map[string]any
+	}
+
+	results := make([]moduleResult, len(parsed.Modules))
+
+	for i, mod := range parsed.Modules {
+		i, mod := i, mod
+		g.Go(func() error {
+			entry := map[string]any{
+				"name": mod.Name,
+				"path": mod.Path,
+			}
+			if mod.Description != "" {
+				entry["description"] = mod.Description
+			}
+			if len(mod.Dependencies) > 0 {
+				entry["dependencies"] = mod.Dependencies
+			}
+			results[i] = moduleResult{index: i, entry: entry}
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	modules := make([]map[string]any, len(results))
+	for _, r := range results {
+		modules[r.index] = r.entry
+	}
+
+	services := normalizeServicesFromSpec(parsed)
+
+	result := map[string]any{
+		"project":  parsed.Project,
+		"modules":  modules,
+		"services": services,
+		"source":   parsed,
+	}
+
+	if parsed.Architecture != nil {
+		result["architecture"] = normalizeArchitectureFromSpec(parsed.Architecture)
+	}
+	if parsed.Deployment != nil {
+		result["deployment"] = normalizeDeploymentFromSpec(parsed.Deployment)
+	}
+	if parsed.Testing != nil {
+		result["testing"] = normalizeTestingFromSpec(parsed.Testing)
+	}
+	if parsed.Generation != nil {
+		result["generation"] = normalizeGenerationFromSpec(parsed.Generation)
+	}
+
+	return &normalizer.NormalizedSpec{Values: result}, nil
+}
+
+func normalizeServicesFromSpec(parsed *parser.SpecDocument) []map[string]any {
+	result := make([]map[string]any, 0, len(parsed.Services))
+	for _, s := range parsed.Services {
+		entry := map[string]any{
+			"name": s.Name,
+			"kind": s.Kind,
+			"port": s.Port,
+		}
+		if s.Description != "" {
+			entry["description"] = s.Description
+		}
+		if len(s.Endpoints) > 0 {
+			eps := make([]map[string]any, 0, len(s.Endpoints))
+			for _, ep := range s.Endpoints {
+				eps = append(eps, map[string]any{
+					"method": ep.Method,
+					"path":   ep.Path,
+					"action": ep.Action,
+				})
+			}
+			entry["endpoints"] = eps
+		}
+		result = append(result, entry)
+	}
+	return result
+}
+
+func normalizeArchitectureFromSpec(arch *parser.Architecture) map[string]any {
+	result := map[string]any{
+		"pattern":     arch.Pattern,
+		"description": arch.Description,
+	}
+	if len(arch.Principles) > 0 {
+		result["principles"] = arch.Principles
+	}
+	return result
+}
+
+func normalizeDeploymentFromSpec(deploy *parser.Deployment) map[string]any {
+	result := map[string]any{
+		"strategy": deploy.Strategy,
+	}
+	if len(deploy.Environments) > 0 {
+		envs := make([]map[string]any, 0, len(deploy.Environments))
+		for _, env := range deploy.Environments {
+			envs = append(envs, map[string]any{"name": env})
+		}
+		result["environments"] = envs
+	}
+	return result
+}
+
+func normalizeGenerationFromSpec(gen *parser.Generation) map[string]any {
+	result := map[string]any{}
+	if len(gen.Languages) > 0 {
+		result["languages"] = gen.Languages
+	}
+	if gen.OutputDir != "" {
+		result["output_dir"] = gen.OutputDir
+	}
+	if gen.ModuleDir != "" {
+		result["module_dir"] = gen.ModuleDir
+	}
+	return result
+}
+
+func normalizeTestingFromSpec(test *parser.Testing) map[string]any {
+	result := map[string]any{
+		"strategy": test.Strategy,
+	}
+	if test.Coverage != "" {
+		result["coverage"] = test.Coverage
+	}
+	return result
 }
 
 func (p *Pipeline) Validate(input string) (*Result, error) {

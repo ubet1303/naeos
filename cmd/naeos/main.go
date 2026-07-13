@@ -8,8 +8,9 @@ import (
 )
 
 var (
-	cliVerbose bool
-	cliDryRun  bool
+	cliVerbose     bool
+	cliDryRun      bool
+	cliOutputFormat string
 )
 
 func main() {
@@ -44,6 +45,7 @@ func newRootCommand() *cobra.Command {
 
 	root.PersistentFlags().BoolVar(&cliVerbose, "verbose", false, "enable verbose logging")
 	root.PersistentFlags().BoolVar(&cliDryRun, "dry-run", false, "global dry-run mode: preview without writing to disk")
+	root.PersistentFlags().StringVar(&cliOutputFormat, "output-format", "table", "output format: json, yaml, table")
 
 	root.AddCommand(newInitCommand())
 	root.AddCommand(newRunCommand())
@@ -103,5 +105,6 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newHistoryCommand())
 	root.AddCommand(newMigrationCmd())
 	root.AddCommand(newDeployCommand())
+	root.AddCommand(newTUICommand())
 	return root
 }

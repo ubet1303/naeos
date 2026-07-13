@@ -38,24 +38,23 @@ Example:
 				return nil
 			}
 
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Pipeline Run History (%d runs)\n", len(ids))))
-			cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 60) + "\n"))
+			type historyEntry struct {
+				ID     string `json:"id" yaml:"id"`
+				Name   string `json:"name" yaml:"name"`
+				Status string `json:"status" yaml:"status"`
+				Events int    `json:"events" yaml:"events"`
+				Dur    string `json:"duration,omitempty" yaml:"duration,omitempty"`
+				Error  string `json:"error,omitempty" yaml:"error,omitempty"`
+			}
 
+			var entries []historyEntry
 			for _, id := range ids {
 				events, err := store.Load(id)
 				if err != nil {
-					cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %s — error loading: %v\n", id, err)))
+					entries = append(entries, historyEntry{ID: id, Status: "error", Error: err.Error()})
 					continue
 				}
 				snap := eventsourcing.RebuildFromEvents(id, events)
-
-				status := snap.Status
-				icon := "✓"
-				if status == "failed" {
-					icon = "✗"
-				} else if status == "running" {
-					icon = "●"
-				}
 
 				name := snap.Name
 				if name == "" {
@@ -71,17 +70,42 @@ Example:
 					}
 				}
 
-				durStr := ""
-				if duration != "" {
-					durStr = fmt.Sprintf(" (%s)", duration)
-				}
-
-				cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %s %s | %s | %d events%s\n", icon, id, name, len(events), durStr)))
-				if snap.Error != "" {
-					cmd.OutOrStdout().Write([]byte(fmt.Sprintf("    error: %s\n", snap.Error)))
-				}
+				entries = append(entries, historyEntry{
+					ID:     id,
+					Name:   name,
+					Status: snap.Status,
+					Events: len(events),
+					Dur:    duration,
+					Error:  snap.Error,
+				})
 			}
-			return nil
+
+			switch cliOutputFormat {
+			case "json":
+				return FormatOutput(cmd.OutOrStdout(), entries, "json")
+			case "yaml":
+				return FormatOutput(cmd.OutOrStdout(), entries, "yaml")
+			default:
+				cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Pipeline Run History (%d runs)\n", len(ids))))
+				cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 60) + "\n"))
+				for _, e := range entries {
+					icon := "✓"
+					if e.Status == "failed" || e.Status == "error" {
+						icon = "✗"
+					} else if e.Status == "running" {
+						icon = "●"
+					}
+					durStr := ""
+					if e.Dur != "" {
+						durStr = fmt.Sprintf(" (%s)", e.Dur)
+					}
+					cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %s %s | %s | %d events%s\n", icon, e.ID, e.Name, e.Events, durStr)))
+					if e.Error != "" {
+						cmd.OutOrStdout().Write([]byte(fmt.Sprintf("    error: %s\n", e.Error)))
+					}
+				}
+				return nil
+			}
 		},
 	}
 

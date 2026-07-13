@@ -125,3 +125,30 @@ Prioritas utama adalah menjaga kualitas, konsistensi, dan keterpahaman dokumen b
 - [x] fmt.Errorf %w audit and fix
 - [x] Tests for generation/renderers, generation/engine, hcl, cloud, marketplace, api, pluginhost, mcp, errors
 - [x] Makefile targets: docker, benchmark, security, e2e
+
+### v0.9.0 — Production Readiness & Standards
+- [x] Structured logging with log/slog (JSON, levels, request-scoped fields)
+- [x] Request body size limits (10MB default, HTTP 413)
+- [x] X-Request-ID propagation (UUID v4, context, response headers)
+- [x] Configurable CORS (CORSConfig struct, origin whitelist, preflight)
+- [x] Prometheus metrics endpoints (/metrics, /healthz, /readyz)
+- [x] Real OAuth2 token exchange (Google + GitHub HTTP endpoints)
+- [x] RBAC enforcement in API middleware (JWT → role → permission check)
+- [x] Audit logging (FileAuditor + MemoryAuditor, wired to POST/DELETE)
+- [x] OIDC discovery endpoint (/.well-known/openid-configuration, JWKS)
+- [x] GoReleaser release workflow (.goreleaser.yaml + GitHub Actions)
+- [x] Interactive CLI mode (naeos tui — guided wizard)
+- [x] Global --output-format flag (json/yaml/table for all list commands)
+- [x] Pipeline cache TTL + LRU eviction improvements
+- [x] Parallel spec parsing with errgroup (GOMAXPROCS bounded)
+- [x] Cloud adapter connection pooling (RunnerPool, skip re-init)
+- [x] Docker multi-arch buildx (linux/amd64,linux/arm64)
+- [x] CI coverage reporting (Codecov)
+- [x] Expanded golangci-lint (16 linters including gosec, errorlint)
+- [x] Graceful WebSocket connection draining on shutdown
+- [x] gorilla/websocket replacement (replaced custom framing)
+- [x] Lazy plugin loading (load on first Execute)
+- [x] Shell completion install targets (bash/zsh/fish)
+- [x] Docker HEALTHCHECK + .dockerignore
+- [x] API ↔ OpenAPI spec alignment (fixed path mismatches)
+- [x] Cleanup: removed empty api/handlers/ and api/middleware/

@@ -169,17 +169,28 @@ func (a *AWSAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 		return nil, err
 	}
 
-	workDir, err := TempWorkDir("naeos-aws")
-	if err != nil {
-		return nil, err
-	}
-
-	tr := NewTerraformRunner(workDir)
-	if a.Runner != nil {
-		tr.Runner = a.Runner
-	}
-	if err := tr.Deploy(tf); err != nil {
-		return nil, err
+	pool := GetDefaultPool()
+	tr, pooled := pool.Get(config.Project, AWS)
+	if pooled {
+		if err := tr.writeHCL(tf); err != nil {
+			return nil, err
+		}
+		if err := tr.Apply(); err != nil {
+			return nil, err
+		}
+	} else {
+		workDir, err := TempWorkDir("naeos-aws")
+		if err != nil {
+			return nil, err
+		}
+		tr = NewTerraformRunner(workDir)
+		if a.Runner != nil {
+			tr.Runner = a.Runner
+		}
+		if err := tr.Deploy(tf); err != nil {
+			return nil, err
+		}
+		pool.Put(config.Project, AWS, tr, true)
 	}
 
 	deployed := []DeployedResource{}
@@ -206,7 +217,7 @@ func (a *AWSAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 		Environment: config.Environment,
 		Region:      config.Region,
 		Resources:   deployed,
-		TerraformDir: workDir,
+		TerraformDir: tr.WorkDir,
 		Timestamp:   result.Timestamp,
 		Status:      "deployed",
 	})
@@ -215,6 +226,16 @@ func (a *AWSAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 }
 
 func (a *AWSAdapter) Destroy(config *DeployConfig) error {
+	pool := GetDefaultPool()
+	if tr, pooled := pool.Get(config.Project, AWS); pooled {
+		if err := tr.ApplyDestroy(); err == nil {
+			pool.Remove(config.Project, AWS)
+			sm := NewStateManager()
+			sm.Delete(config.Project, AWS)
+			return nil
+		}
+	}
+
 	sm := NewStateManager()
 	record, err := sm.Load(config.Project, AWS)
 	if err == nil && record.TerraformDir != "" {

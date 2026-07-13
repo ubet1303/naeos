@@ -2,8 +2,6 @@ package websocket
 
 import (
 	"encoding/json"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 )
@@ -12,50 +10,6 @@ func TestNewServer(t *testing.T) {
 	s := NewServer()
 	if s == nil {
 		t.Fatal("expected server to be created")
-	}
-}
-
-func TestIsWebSocketUpgrade(t *testing.T) {
-	tests := []struct {
-		name     string
-		headers  map[string]string
-		expected bool
-	}{
-		{
-			name: "valid websocket upgrade",
-			headers: map[string]string{
-				"Connection": "upgrade",
-				"Upgrade":    "websocket",
-			},
-			expected: true,
-		},
-		{
-			name: "not websocket",
-			headers: map[string]string{
-				"Connection": "keep-alive",
-			},
-			expected: false,
-		},
-		{
-			name: "case insensitive",
-			headers: map[string]string{
-				"Connection": "Upgrade",
-				"Upgrade":    "WebSocket",
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest("GET", "/ws", nil)
-			for k, v := range tt.headers {
-				r.Header.Set(k, v)
-			}
-			if got := isWebSocketUpgrade(r); got != tt.expected {
-				t.Errorf("isWebSocketUpgrade() = %v, want %v", got, tt.expected)
-			}
-		})
 	}
 }
 
@@ -112,8 +66,10 @@ func TestGenerateID(t *testing.T) {
 	if id1 == id2 {
 		t.Error("expected unique IDs")
 	}
+}
 
-	if !strings.HasPrefix(id1, "client-") {
-		t.Errorf("expected ID to start with 'client-', got %s", id1)
-	}
+func TestStop(t *testing.T) {
+	s := NewServer()
+	go s.Run()
+	s.Stop()
 }
