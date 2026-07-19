@@ -300,6 +300,8 @@ func (lb *LoadBalancer) Next() Worker {
 }
 
 func (lb *LoadBalancer) WorkerCount() int {
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
 	return len(lb.workers)
 }
 
@@ -563,7 +565,11 @@ func computeBackoff(attempt int) time.Duration {
 	if attempt < 1 {
 		return 100 * time.Millisecond
 	}
-	base := time.Duration(1<<uint(attempt-1)) * 100 * time.Millisecond //nolint:gosec
+	exp := 1
+	if attempt-1 < 30 {
+		exp = 1 << uint(attempt-1)
+	}
+	base := time.Duration(exp) * 100 * time.Millisecond
 	if base > 5*time.Second {
 		base = 5 * time.Second
 	}

@@ -1,7 +1,6 @@
 package broker
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -570,21 +569,22 @@ type PoolMetrics struct {
 	Total        int64
 	Healthy      int64
 	Unhealthy    int64
-	NextCalls    int64
-	HealthChecks int64
+	NextCalls    int64 `json:"-"`
+	HealthChecks int64 `json:"-"`
 }
 
 type ConnectionPool struct {
-	brokers     []Broker
-	current     uint64
-	healthy     []bool
-	createdAt   []time.Time
-	maxLifetime time.Duration
-	mu          sync.RWMutex
-	checkFn     func(Broker) bool
-	metrics     PoolMetrics
-	stopCh      chan struct{}
-	running     bool
+	brokers      []Broker
+	current      uint64
+	healthy      []bool
+	createdAt    []time.Time
+	maxLifetime  time.Duration
+	mu           sync.RWMutex
+	checkFn      func(Broker) bool
+	nextCalls    atomic.Int64
+	healthChecks atomic.Int64
+	stopCh       chan struct{}
+	running      bool
 }
 
 func NewConnectionPool(brokers ...Broker) *ConnectionPool {
@@ -600,7 +600,6 @@ func NewConnectionPool(brokers ...Broker) *ConnectionPool {
 		healthy:   healthy,
 		createdAt: createdAt,
 		checkFn:   func(b Broker) bool { return b.Ping() == nil },
-		metrics:   PoolMetrics{Total: int64(len(brokers)), Healthy: int64(len(brokers))},
 		stopCh:    make(chan struct{}),
 	}
 }
@@ -623,7 +622,6 @@ func (cp *ConnectionPool) SetMaxLifetime(d time.Duration) {
 			cp.healthy[i] = false
 		}
 	}
-	cp.updateMetrics()
 }
 
 func (cp *ConnectionPool) StartHealthCheck(interval time.Duration) {
@@ -664,7 +662,7 @@ func (cp *ConnectionPool) Next() Broker {
 	cp.mu.RLock()
 	defer cp.mu.RUnlock()
 
-	cp.metrics.NextCalls++
+	cp.nextCalls.Add(1)
 
 	if len(cp.brokers) == 0 {
 		return nil
@@ -701,7 +699,7 @@ func (cp *ConnectionPool) CheckHealth() {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
 
-	cp.metrics.HealthChecks++
+	cp.healthChecks.Add(1)
 
 	for i, b := range cp.brokers {
 		healthy := cp.checkFn(b)
@@ -710,7 +708,6 @@ func (cp *ConnectionPool) CheckHealth() {
 		}
 		cp.healthy[i] = healthy
 	}
-	cp.updateMetrics()
 }
 
 func (cp *ConnectionPool) SetHealthy(index int, healthy bool) {
@@ -718,14 +715,25 @@ func (cp *ConnectionPool) SetHealthy(index int, healthy bool) {
 	defer cp.mu.Unlock()
 	if index >= 0 && index < len(cp.healthy) {
 		cp.healthy[index] = healthy
-		cp.updateMetrics()
 	}
 }
 
 func (cp *ConnectionPool) PoolMetrics() PoolMetrics {
 	cp.mu.RLock()
 	defer cp.mu.RUnlock()
-	return cp.metrics
+	healthy := int64(0)
+	for _, h := range cp.healthy {
+		if h {
+			healthy++
+		}
+	}
+	return PoolMetrics{
+		Total:        int64(len(cp.brokers)),
+		Healthy:      healthy,
+		Unhealthy:    int64(len(cp.brokers)) - healthy,
+		NextCalls:    cp.nextCalls.Load(),
+		HealthChecks: cp.healthChecks.Load(),
+	}
 }
 
 func (cp *ConnectionPool) CloseAll() error {
@@ -737,18 +745,6 @@ func (cp *ConnectionPool) CloseAll() error {
 		}
 	}
 	return nil
-}
-
-func (cp *ConnectionPool) updateMetrics() {
-	healthy := int64(0)
-	for _, h := range cp.healthy {
-		if h {
-			healthy++
-		}
-	}
-	cp.metrics.Total = int64(len(cp.brokers))
-	cp.metrics.Healthy = healthy
-	cp.metrics.Unhealthy = int64(len(cp.brokers)) - healthy
 }
 
 // Metrics tracks publish/receive/error counts and per-channel subscriber counts.
@@ -842,10 +838,3 @@ func (mb *MetricsBroker) Unsubscribe(channel string) error {
 }
 
 func (mb *MetricsBroker) Metrics() *Metrics { return mb.metrics }
-
-var (
-	ErrNotConnected   = errors.New("not connected")
-	ErrPoolEmpty      = errors.New("broker pool is empty")
-	ErrMessageNil     = errors.New("message is nil")
-	ErrDeadLetterFull = errors.New("dead letter queue full")
-)

@@ -66,10 +66,10 @@ func (s *ConnectionStore) Add(name, driver string, config *Config) error {
 		return err
 	}
 
-	for _, e := range s.entries {
+	for i, e := range s.entries {
 		if e.Name == name {
-			e.Driver = driver
-			e.Config = config
+			s.entries[i].Driver = driver
+			s.entries[i].Config = config
 			return s.save()
 		}
 	}

@@ -54,6 +54,8 @@ type Registry struct {
 	maxCardinality  int
 	cleanupInterval time.Duration
 	stopCleanup     chan struct{}
+	cleanupRunning  bool
+	cleanupMu       sync.Mutex
 }
 
 func NewRegistry() *Registry {
@@ -81,6 +83,14 @@ func NewRegistryWithOptions(maxCardinality int, cleanupInterval time.Duration) *
 }
 
 func (r *Registry) StartCleanup(minAge time.Duration) {
+	r.cleanupMu.Lock()
+	defer r.cleanupMu.Unlock()
+	if r.cleanupRunning {
+		return
+	}
+	r.cleanupRunning = true
+	r.stopCleanup = make(chan struct{})
+
 	go func() {
 		ticker := time.NewTicker(r.cleanupInterval)
 		defer ticker.Stop()
@@ -96,6 +106,12 @@ func (r *Registry) StartCleanup(minAge time.Duration) {
 }
 
 func (r *Registry) StopCleanup() {
+	r.cleanupMu.Lock()
+	defer r.cleanupMu.Unlock()
+	if !r.cleanupRunning {
+		return
+	}
+	r.cleanupRunning = false
 	close(r.stopCleanup)
 }
 
