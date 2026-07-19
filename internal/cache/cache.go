@@ -191,6 +191,7 @@ func (c *Cache) StartEviction(interval time.Duration) {
 		return
 	}
 	c.running = true
+	stopCh := c.stopCh
 	c.mu.Unlock()
 
 	go func() {
@@ -201,7 +202,7 @@ func (c *Cache) StartEviction(interval time.Duration) {
 			select {
 			case <-ticker.C:
 				c.Cleanup()
-			case <-c.stopCh:
+			case <-stopCh:
 				return
 			}
 		}

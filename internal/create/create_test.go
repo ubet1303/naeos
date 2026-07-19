@@ -227,4 +227,185 @@ func TestGenerateDockerfile(t *testing.T) {
 	if !strings.Contains(content, "node:20-alpine") {
 		t.Error("expected Node Dockerfile")
 	}
+	content = s.generateDockerfile(&ProjectConfig{Language: "python", Port: 5000})
+	if !strings.Contains(content, "python:3.12-slim") {
+		t.Error("expected Python Dockerfile")
+	}
+	content = s.generateDockerfile(&ProjectConfig{Language: "java", Port: 8080})
+	if !strings.Contains(content, "python") {
+		t.Error("expected default Dockerfile for Java")
+	}
+}
+
+func TestToSpecWithoutTesting(t *testing.T) {
+	cfg := &ProjectConfig{
+		Name:          "test",
+		Description:   "",
+		Language:      "go",
+		Architecture:  "clean",
+		Deployment:    "canary",
+		Port:          9090,
+		EnableTesting: false,
+	}
+	spec := cfg.ToSpec()
+	if strings.Contains(spec, "testing:") {
+		t.Error("expected no testing section when disabled")
+	}
+	if strings.Contains(spec, "description:") {
+		t.Error("expected no description when empty")
+	}
+}
+
+func TestGenerateDockerCompose(t *testing.T) {
+	s := NewScaffolder(false)
+	content := s.generateDockerCompose(&ProjectConfig{Port: 8080})
+	if !strings.Contains(content, `"8080:8080"`) {
+		t.Error("expected port mapping in docker-compose")
+	}
+}
+
+func TestGenerateCIWorkflow(t *testing.T) {
+	s := NewScaffolder(false)
+	content := s.generateCIWorkflow(&ProjectConfig{Name: "My App"})
+	if !strings.Contains(content, "name: CI") {
+		t.Error("expected CI workflow header")
+	}
+	if !strings.Contains(content, "my-app") {
+		t.Error("expected project name in CI")
+	}
+}
+
+func TestGenerateREADME(t *testing.T) {
+	s := NewScaffolder(false)
+	content := s.generateREADME(&ProjectConfig{
+		Name:         "Test App",
+		Description:  "A test",
+		Architecture: "clean",
+		Language:     "go",
+		Deployment:   "rolling",
+	})
+	if !strings.Contains(content, "Test App") {
+		t.Error("expected project name in README")
+	}
+	if !strings.Contains(content, "clean") {
+		t.Error("expected architecture in README")
+	}
+}
+
+func TestGenerateMakefile(t *testing.T) {
+	s := NewScaffolder(false)
+	content := s.generateMakefile(&ProjectConfig{Name: "My App"})
+	if !strings.Contains(content, "my-app") {
+		t.Error("expected binary name in Makefile")
+	}
+}
+
+func TestGenerateMainGo(t *testing.T) {
+	s := NewScaffolder(false)
+	content := s.generateMainGo(&ProjectConfig{Name: "My API", Port: 8080})
+	if !strings.Contains(content, "My API") {
+		t.Error("expected app name in main.go")
+	}
+	if !strings.Contains(content, `port = "8080"`) {
+		t.Error("expected default port in main.go")
+	}
+}
+
+func TestGenerateTSIndex(t *testing.T) {
+	s := NewScaffolder(false)
+	content := s.generateTSIndex(&ProjectConfig{Name: "TS App", Port: 3000})
+	if !strings.Contains(content, "TS App") {
+		t.Error("expected app name in TS index")
+	}
+	if !strings.Contains(content, "3000") {
+		t.Error("expected port in TS index")
+	}
+}
+
+func TestGeneratePythonMain(t *testing.T) {
+	s := NewScaffolder(false)
+	content := s.generatePythonMain(&ProjectConfig{Name: "Py App", Port: 5000})
+	if !strings.Contains(content, "Py App") {
+		t.Error("expected app name in Python main")
+	}
+	if !strings.Contains(content, "5000") {
+		t.Error("expected port in Python main")
+	}
+}
+
+func TestGenerateGitignorePython(t *testing.T) {
+	s := NewScaffolder(false)
+	content := s.generateGitignore(&ProjectConfig{Language: "python", OutputDir: "dist"})
+	if !strings.Contains(content, "__pycache__/") {
+		t.Error("expected python gitignore entries")
+	}
+}
+
+func TestScaffolderGenerateWithoutDockerCI(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &ProjectConfig{
+		Name:         "NoDockerCI",
+		ModulePath:   "./nodockerci",
+		Language:     "go",
+		OutputDir:    dir,
+		Port:         8080,
+		EnableDocker: false,
+		EnableCI:     false,
+	}
+	s := NewScaffolder(true)
+	files, err := s.Generate(cfg)
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	for _, f := range files {
+		if strings.Contains(f.Path, "Dockerfile") || strings.Contains(f.Path, "ci.yml") {
+			t.Errorf("unexpected file when docker/ci disabled: %s", f.Path)
+		}
+	}
+}
+
+func TestScaffolderJava(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &ProjectConfig{
+		Name:       "JavaApp",
+		ModulePath: "./javaapp",
+		Language:   "java",
+		OutputDir:  dir,
+		Port:       8080,
+	}
+	s := NewScaffolder(true)
+	files, err := s.Generate(cfg)
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	paths := make(map[string]bool)
+	for _, f := range files {
+		paths[f.Path] = true
+	}
+	if !paths[filepath.Join(dir, "README.md")] {
+		t.Error("expected README.md for Java project")
+	}
+}
+
+func TestValidateConfigWithAllValidLanguages(t *testing.T) {
+	langs := []string{"go", "typescript", "python", "java", "rust"}
+	for _, lang := range langs {
+		errs := ValidateConfig(&ProjectConfig{
+			Name: "test", ModulePath: "./test",
+			Language: lang, Architecture: "hexagonal", Port: 8080,
+		})
+		if len(errs) > 0 {
+			t.Errorf("expected valid for language %q, got errors: %v", lang, errs)
+		}
+	}
+}
+
+func TestValidateConfigPortTooHigh(t *testing.T) {
+	errs := ValidateConfig(&ProjectConfig{
+		Name: "test", ModulePath: "./test",
+		Language: "go", Architecture: "hexagonal", Port: 70000,
+	})
+	if len(errs) == 0 {
+		t.Error("expected error for port out of range")
+	}
 }

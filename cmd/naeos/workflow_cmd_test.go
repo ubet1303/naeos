@@ -13,14 +13,14 @@ func TestWorkflowCommandShowsHelp(t *testing.T) {
 	}
 }
 
-func TestWorkflowListEmpty(t *testing.T) {
+func TestWorkflowListShowsTable(t *testing.T) {
 	root := newRootCommand()
 	output, err := executeCommand(root, "workflow", "list")
 	if err != nil {
 		t.Fatalf("workflow list failed: %v", err)
 	}
-	if !strings.Contains(output, "No workflows defined") {
-		t.Fatalf("expected no workflows message, got %q", output)
+	if !strings.Contains(output, "WORKFLOW") {
+		t.Fatalf("expected workflow table header, got %q", output)
 	}
 }
 

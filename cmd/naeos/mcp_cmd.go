@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -44,8 +45,9 @@ Example:
 			fmt.Fprintf(cmd.OutOrStdout(), "Health check: http://localhost:%d/health\n", port)
 
 			srv := &http.Server{
-				Addr:    addr,
-				Handler: server.Handler(),
+				Addr:              addr,
+				Handler:           server.Handler(),
+				ReadHeaderTimeout: 10 * time.Second,
 			}
 
 			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
@@ -53,7 +55,7 @@ Example:
 
 			go func() {
 				<-ctx.Done()
-				srv.Shutdown(context.Background())
+				_ = srv.Shutdown(context.Background())
 			}()
 
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

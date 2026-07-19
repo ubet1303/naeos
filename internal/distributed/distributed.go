@@ -114,7 +114,13 @@ func (c *Coordinator) workerLoop(ctx context.Context, w Worker) {
 			if !ok {
 				return
 			}
+			c.mu.Lock()
+			if c.draining.Load() {
+				c.mu.Unlock()
+				return
+			}
 			c.drainWg.Add(1)
+			c.mu.Unlock()
 			result := c.executeWithRetry(ctx, w, task)
 			c.drainWg.Done()
 			if result != nil {
@@ -215,7 +221,9 @@ func (c *Coordinator) Stop() {
 }
 
 func (c *Coordinator) Drain() {
+	c.mu.Lock()
 	c.draining.Store(true)
+	c.mu.Unlock()
 	c.drainWg.Wait()
 	close(c.taskCh)
 	c.wg.Wait()
@@ -552,7 +560,10 @@ func (hc *HealthChecker) HealthyWorkers() []Worker {
 }
 
 func computeBackoff(attempt int) time.Duration {
-	base := time.Duration(1<<uint(attempt-1)) * 100 * time.Millisecond
+	if attempt < 1 {
+		return 100 * time.Millisecond
+	}
+	base := time.Duration(1<<uint(attempt-1)) * 100 * time.Millisecond //nolint:gosec
 	if base > 5*time.Second {
 		base = 5 * time.Second
 	}

@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.5.0] - 2026-07-19
+
+### Fixed
+- **`TestSecuritySetSecret`** — added missing `--key` flag in test command invocation.
+- **`TestCoordinatorDrain`** — fixed data race between `Drain()` and `workerLoop()` by synchronizing `draining` flag with mutex.
+
+### Production Hardening
+- **Test coverage** — improved coverage for `neir/validator`, `neir/builder`, `internal/diff`, `internal/broker`, `internal/create`.
+- **Race detector** — all packages pass `go test -race ./...` cleanly.
+
 ## [1.4.0] - 2026-07-19
 
 ### Added

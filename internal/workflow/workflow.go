@@ -335,7 +335,6 @@ func (w *Workflow) ExecuteParallelGroup(ctx context.Context, groups []*ParallelS
 			wg.Add(1)
 			go func(s *WorkflowStep) {
 				defer wg.Done()
-				w.Context.Current = s.Name
 				w.emitEvent(EventStepStart, s.Name, nil)
 
 				if err := s.Action(w.Context); err != nil {

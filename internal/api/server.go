@@ -331,7 +331,7 @@ func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFun
 			}
 		}
 
-		slog.Info("request", "method", r.Method, "path", r.URL.Path, "request_id", requestID)
+		slog.Info("request", "method", r.Method, "path", r.URL.Path, "request_id", requestID) //nolint:gosec
 		handler(w, r)
 	}
 }
