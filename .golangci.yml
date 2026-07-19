@@ -64,4 +64,12 @@ formatters:
     paths:
       - third_party$
       - builtin$
-      - examples$
+      - examples feature/pipeline-review-rules
+        - errcheck
+        - staticcheck
+        - unused
+        - gosimple
+        - ineffassign
+        - typecheck
+  max-issues-per-linter: 0
+  max-same-issues: 0
