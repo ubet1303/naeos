@@ -2,12 +2,22 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/NAEOS-foundation/naeos/internal/workflow"
 )
+
+const workflowStoreDir = ".naeos/workflows"
+
+func workflowManager() *workflow.Manager {
+	home, _ := os.UserHomeDir()
+	storePath := filepath.Join(home, workflowStoreDir)
+	return workflow.NewManagerWithPath(storePath)
+}
 
 func newWorkflowCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -45,7 +55,7 @@ func newWorkflowListCommand() *cobra.Command {
 		Short: "List all workflows",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mgr := workflow.NewManager()
+			mgr := workflowManager()
 
 			names := mgr.List()
 
@@ -81,7 +91,7 @@ func newWorkflowCreateCommand() *cobra.Command {
 		Short: "Create a new workflow",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mgr := workflow.NewManager()
+			mgr := workflowManager()
 
 			var workflowSteps []*workflow.WorkflowStep
 			for i, step := range steps {
@@ -119,7 +129,7 @@ func newWorkflowExecuteCommand() *cobra.Command {
 		Short: "Execute a workflow",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mgr := workflow.NewManager()
+			mgr := workflowManager()
 
 			if err := mgr.Execute(name); err != nil {
 				return fmt.Errorf("execution failed: %w", err)

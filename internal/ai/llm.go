@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/NAEOS-foundation/naeos/internal/promptlib"
 )
 
 // LLMProvider identifies a supported LLM provider.
@@ -35,6 +37,7 @@ type LLMConfig struct {
 type LLMService struct {
 	config     LLMConfig
 	httpClient *http.Client
+	library    *promptlib.Library
 }
 
 type chatMessage struct {
@@ -76,7 +79,7 @@ type anthropicResponse struct {
 }
 
 // NewLLMService creates an LLM service with the given configuration.
-func NewLLMService(config LLMConfig) *LLMService {
+func NewLLMService(config LLMConfig, lib ...*promptlib.Library) *LLMService {
 	if config.Model == "" {
 		switch config.Provider {
 		case ProviderOpenAI:
@@ -92,34 +95,45 @@ func NewLLMService(config LLMConfig) *LLMService {
 		config.Timeout = 30 * time.Second
 	}
 
-	return &LLMService{
+	s := &LLMService{
 		config: config,
 		httpClient: &http.Client{
 			Timeout: config.Timeout,
 		},
 	}
+	if len(lib) > 0 && lib[0] != nil {
+		s.library = lib[0]
+	}
+	return s
 }
 
 // EnrichSpec sends a specification to the LLM for enhancement with best practices.
 func (s *LLMService) EnrichSpec(specContent string) (string, error) {
-	prompt := fmt.Sprintf(`You are a platform engineering expert. Analyze this NAEOS specification and enrich it with best practices.
+	prompt := s.buildEnrichPrompt(specContent)
+	return s.callLLM(prompt)
+}
+
+func (s *LLMService) buildEnrichPrompt(specContent string) string {
+	if s.library != nil {
+		rendered, err := s.library.RenderLLM("enrich-spec", map[string]any{
+			"SpecContent": specContent,
+		})
+		if err == nil && rendered.User != "" {
+			return rendered.User
+		}
+	}
+
+	return fmt.Sprintf(`You are a platform engineering expert. Analyze this NAEOS specification and enrich it with best practices.
 Add any missing sections that would improve the specification. Keep the existing content intact.
 Only output the enriched YAML specification, no explanations.
 
 Specification:
 %s`, specContent)
-
-	return s.callLLM(prompt)
 }
 
 // GenerateSuggestions asks the LLM to produce improvement suggestions for a specification.
 func (s *LLMService) GenerateSuggestions(specContent string) ([]Suggestion, error) {
-	prompt := fmt.Sprintf(`Analyze this NAEOS specification and return a JSON array of suggestions.
-Each suggestion should have: category, title, description, priority (high/medium/low).
-Return ONLY the JSON array, no other text.
-
-Specification:
-%s`, specContent)
+	prompt := s.buildSuggestionsPrompt(specContent)
 
 	response, err := s.callLLM(prompt)
 	if err != nil {
@@ -134,17 +148,48 @@ Specification:
 	return suggestions, nil
 }
 
+func (s *LLMService) buildSuggestionsPrompt(specContent string) string {
+	if s.library != nil {
+		rendered, err := s.library.RenderLLM("generate-suggestions", map[string]any{
+			"SpecContent": specContent,
+		})
+		if err == nil && rendered.User != "" {
+			return rendered.User
+		}
+	}
+
+	return fmt.Sprintf(`Analyze this NAEOS specification and return a JSON array of suggestions.
+Each suggestion should have: category, title, description, priority (high/medium/low).
+Return ONLY the JSON array, no other text.
+
+Specification:
+%s`, specContent)
+}
+
 // ExplainArchitecture asks the LLM to explain an architecture pattern in the context of the specification.
 func (s *LLMService) ExplainArchitecture(specContent, architecture string) (string, error) {
-	prompt := fmt.Sprintf(`Explain the architecture pattern "%s" in the context of this specification.
+	prompt := s.buildExplainPrompt(specContent, architecture)
+	return s.callLLM(prompt)
+}
+
+func (s *LLMService) buildExplainPrompt(specContent, arch string) string {
+	if s.library != nil {
+		rendered, err := s.library.RenderLLM("explain-architecture", map[string]any{
+			"SpecContent":  specContent,
+			"Architecture": arch,
+		})
+		if err == nil && rendered.User != "" {
+			return rendered.User
+		}
+	}
+
+	return fmt.Sprintf(`Explain the architecture pattern "%s" in the context of this specification.
 Provide a clear, concise explanation suitable for a developer.
 
 Specification:
 %s
 
-Architecture explanation:`, architecture, specContent)
-
-	return s.callLLM(prompt)
+Architecture explanation:`, arch, specContent)
 }
 
 func (s *LLMService) callLLM(prompt string) (string, error) {

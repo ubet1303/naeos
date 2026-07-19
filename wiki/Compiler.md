@@ -38,8 +38,8 @@ import (
 c := compiler.New()
 
 // Register adapter
-c.Register(adapters.NewCopilotAdapter())
-c.Register(adapters.NewClaudeAdapter())
+c.Register(adapters.NewCopilotAdapter(nil))
+c.Register(adapters.NewClaudeAdapter(nil))
 
 // Compile
 output, err := c.Compile(neir, compiler.TargetCopilot)

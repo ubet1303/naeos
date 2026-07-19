@@ -116,9 +116,9 @@ func TestFullPipeline(t *testing.T) {
 	}
 
 	c := compiler.New()
-	c.Register(adapters.NewCopilotAdapter())
-	c.Register(adapters.NewClaudeAdapter())
-	c.Register(adapters.NewCursorAdapter())
+	c.Register(adapters.NewCopilotAdapter(nil))
+	c.Register(adapters.NewClaudeAdapter(nil))
+	c.Register(adapters.NewCursorAdapter(nil))
 
 	outputs := c.CompileAll(neir)
 	if len(outputs) != 3 {
@@ -145,7 +145,7 @@ func TestSpecToNEIRToCompileRoundTrip(t *testing.T) {
 	neir, _ := parseAndBuild(t, testSpec)
 
 	c := compiler.New()
-	c.Register(adapters.NewCopilotAdapter())
+	c.Register(adapters.NewCopilotAdapter(nil))
 	out, err := c.Compile(neir, compiler.TargetCopilot)
 	if err != nil {
 		t.Fatalf("compile failed: %v", err)
@@ -171,7 +171,7 @@ func TestSpecMinimal(t *testing.T) {
 	neir, _ := parseAndBuild(t, "project: min\n")
 
 	c := compiler.New()
-	c.Register(adapters.NewClaudeAdapter())
+	c.Register(adapters.NewClaudeAdapter(nil))
 	out, err := c.Compile(neir, compiler.TargetClaude)
 	if err != nil {
 		t.Fatalf("compile failed: %v", err)

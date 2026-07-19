@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -501,6 +502,7 @@ func (a *ApprovalWorkflow) ListByStatus(status string) []*ApprovalRequest {
 
 type Manager struct {
 	workflows map[string]*Workflow
+	storePath string
 	mu        sync.RWMutex
 }
 
@@ -510,10 +512,21 @@ func NewManager() *Manager {
 	}
 }
 
+// NewManagerWithPath creates a Manager that persists workflows to the given directory.
+func NewManagerWithPath(storePath string) *Manager {
+	m := &Manager{
+		workflows: make(map[string]*Workflow),
+		storePath: storePath,
+	}
+	m.load()
+	return m
+}
+
 func (m *Manager) Register(name string, workflow *Workflow) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.workflows[name] = workflow
+	m.save()
 }
 
 func (m *Manager) Get(name string) (*Workflow, bool) {
@@ -527,6 +540,7 @@ func (m *Manager) Remove(name string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.workflows, name)
+	m.save()
 }
 
 func (m *Manager) List() []string {
@@ -553,4 +567,52 @@ func (m *Manager) ExecuteWithContext(ctx context.Context, name string) error {
 		return fmt.Errorf("workflow not found: %s", name)
 	}
 	return workflow.ExecuteWithContext(ctx)
+}
+
+type workflowEntry struct {
+	Name  string   `json:"name"`
+	Steps []string `json:"steps"`
+}
+
+func (m *Manager) save() {
+	if m.storePath == "" {
+		return
+	}
+	_ = os.MkdirAll(m.storePath, 0o755)
+	var entries []workflowEntry
+	for name, w := range m.workflows {
+		var stepNames []string
+		for _, s := range w.Steps {
+			stepNames = append(stepNames, s.Name)
+		}
+		entries = append(entries, workflowEntry{Name: name, Steps: stepNames})
+	}
+	data, _ := json.MarshalIndent(entries, "", "  ")
+	_ = os.WriteFile(filepath.Join(m.storePath, "workflows.json"), data, 0o600)
+}
+
+func (m *Manager) load() {
+	if m.storePath == "" {
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(m.storePath, "workflows.json"))
+	if err != nil {
+		return
+	}
+	var entries []workflowEntry
+	if json.Unmarshal(data, &entries) != nil {
+		return
+	}
+	for _, e := range entries {
+		var steps []*WorkflowStep
+		for _, name := range e.Steps {
+			steps = append(steps, &WorkflowStep{
+				Name:     name,
+				Action:   func(ctx *WorkflowContext) error { return nil },
+				Timeout:  300,
+				Required: true,
+			})
+		}
+		m.workflows[e.Name] = NewWorkflow(e.Name, steps)
+	}
 }

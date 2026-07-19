@@ -8,6 +8,7 @@ import (
 
 	"github.com/NAEOS-foundation/naeos/internal/neir/model"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
+	"github.com/NAEOS-foundation/naeos/internal/promptlib"
 )
 
 type Target string
@@ -42,12 +43,26 @@ type Adapter interface {
 
 type Compiler struct {
 	adapters map[Target]Adapter
+	library  *promptlib.Library
 }
 
 func New() *Compiler {
 	return &Compiler{
 		adapters: make(map[Target]Adapter),
 	}
+}
+
+// NewWithLibrary creates a Compiler with a prompt library for template-based compilation.
+func NewWithLibrary(lib *promptlib.Library) *Compiler {
+	return &Compiler{
+		adapters: make(map[Target]Adapter),
+		library:  lib,
+	}
+}
+
+// Library returns the prompt library associated with this compiler, or nil.
+func (c *Compiler) Library() *promptlib.Library {
+	return c.library
 }
 
 func (c *Compiler) Register(a Adapter) {

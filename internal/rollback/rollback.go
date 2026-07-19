@@ -344,7 +344,7 @@ func (s *SnapshotStore) Import(srcPath string) (*Snapshot, error) {
 		}
 
 		target := filepath.Join(snapDir, header.Name) //nolint:gosec // G305: path traversal validated on next line
-		if !strings.HasPrefix(filepath.Clean(target), filepath.Clean(snapDir)+string(os.PathSeparator)) {
+		if header.Name != "." && !strings.HasPrefix(filepath.Clean(target), filepath.Clean(snapDir)+string(os.PathSeparator)) {
 			return nil, fmt.Errorf("invalid path in archive: %s", header.Name)
 		}
 		if header.FileInfo().IsDir() {

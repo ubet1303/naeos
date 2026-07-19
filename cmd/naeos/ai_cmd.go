@@ -22,6 +22,19 @@ Example:
 
 	svc := ai.NewService()
 
+	llmKey := os.Getenv("NAEOS_LLM_API_KEY")
+	if llmKey != "" {
+		provider := ai.ProviderOpenAI
+		if p := os.Getenv("NAEOS_LLM_PROVIDER"); p != "" {
+			provider = ai.LLMProvider(p)
+		}
+		llm := ai.NewLLMService(ai.LLMConfig{
+			Provider: provider,
+			APIKey:   llmKey,
+		})
+		svc = ai.NewServiceWithLLM(llm)
+	}
+
 	aiSuggest := &cobra.Command{
 		Use:   "suggest",
 		Short: "Get AI suggestions for improving a specification",
