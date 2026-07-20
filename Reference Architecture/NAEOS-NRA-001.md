@@ -1,3 +1,6 @@
+
+NAEOS Specification
+
 Document ID: NAEOS-NRA-001
 
 Title: NAEOS Reference Architecture
@@ -10,194 +13,290 @@ Status: Stable
 
 Category: Reference Architecture
 
-Normative: true
+Normative: Yes
 
 Priority: CRITICAL
 
 Owner: NAEOS Foundation
 
-Motto:
-"Architecture Drives Engineering."
+---
+
+Motto
+
+«"Architecture Drives Engineering."»
+
+---
+
+Abstract
+
+NAEOS Reference Architecture (NRA) merupakan arsitektur acuan resmi yang mendefinisikan struktur, hubungan, tanggung jawab, dan aliran eksekusi seluruh komponen dalam ekosistem NAEOS.
+
+Dokumen ini menjadi standar normatif yang harus diikuti oleh seluruh implementasi NAEOS, baik untuk penggunaan individu, tim, maupun enterprise.
+
+NRA memastikan seluruh komponen bekerja secara konsisten, modular, dapat diperluas, aman, dan dapat diamati (observable).
+
+---
+
 Executive Summary
 
-NAEOS Reference Architecture mendefinisikan arsitektur acuan resmi untuk implementasi seluruh komponen NAEOS.
+Reference Architecture menghubungkan seluruh domain utama NAEOS ke dalam satu sistem terpadu.
 
-Dokumen ini menjadi blueprint yang menghubungkan:
+Komponen utama meliputi:
 
-Governance
-Constitution
-Profiles
-Policy
-Kernel
-Runtime
-Compiler
-AI
-Extensions
+- Governance
+- Constitution
+- Policy
+- Profile
+- Knowledge
+- Kernel
+- Runtime
+- Compiler
+- AI Runtime
+- Extension System
+- Integration Layer
+- Experience Layer
 
-ke dalam satu arsitektur yang konsisten.
+Seluruh komponen tersebut membentuk fondasi AI Engineering Operating System.
+
+---
+
+Goals
+
+Reference Architecture bertujuan untuk:
+
+- Menstandarkan implementasi NAEOS.
+- Menjamin interoperabilitas antar modul.
+- Mendukung AI Coding Agent secara konsisten.
+- Memisahkan kebijakan (Policy) dari implementasi.
+- Menjadikan Knowledge Graph sebagai sumber kebenaran utama (Single Source of Truth).
+- Mendukung implementasi dari skala lokal hingga enterprise.
+
+---
 
 Design Principles
 
-Reference Architecture mengikuti prinsip:
+Implementasi NAEOS harus mengikuti prinsip berikut:
 
-Layered
-Modular
-Event-Driven
-Policy-Driven
-AI-Native
-Vendor-Neutral
-Extensible
-Observable
-Deterministic
-Secure by Design
+- Layered Architecture
+- Modular Architecture
+- Event-Driven Architecture
+- Policy-Driven Engineering
+- AI-Native Design
+- Vendor Neutral
+- Extensible by Design
+- Observable by Default
+- Deterministic Execution
+- Secure by Design
+
+---
+
 Layer 1 — Governance Layer
 
-Mengelola aturan tingkat organisasi.
+Purpose
 
-Komponen:
+Mengelola arah strategis dan tata kelola organisasi.
 
-Governance
-Vision
-Mission
-Roadmap
-Versioning
-Core Principles
+Components
 
-Output:
+- Governance
+- Vision
+- Mission
+- Roadmap
+- Versioning
+- Core Principles
+
+Responsibilities
+
+- Menentukan arah pengembangan.
+- Mengelola siklus rilis.
+- Menetapkan prioritas strategis.
+- Menjamin kesinambungan proyek.
+
+Output
 
 Strategic Policies
+
+---
+
 Layer 2 — Constitution Layer
 
-Mengelola hukum engineering.
+Purpose
 
-Komponen:
+Mendefinisikan hukum dan prinsip engineering yang wajib dipatuhi.
 
-Engineering Constitution
-AI Constitution
-Architecture Constitution
-Security Constitution
-Documentation Constitution
-Testing Constitution
-DevOps Constitution
-Interface Constitution
+Components
 
-Output:
+- Engineering Constitution
+- AI Constitution
+- Architecture Constitution
+- Security Constitution
+- Documentation Constitution
+- Testing Constitution
+- DevOps Constitution
+- Interface Constitution
+
+Output
 
 Constitutional Rules
+
+---
+
 Layer 3 — Policy Layer
 
-Mengompilasi kebijakan menjadi aturan yang dapat dieksekusi.
+Purpose
 
-Komponen:
+Mengubah kebijakan menjadi aturan yang dapat dijalankan oleh sistem.
 
-Profile System
-Policy Modules
-Policy Compiler
-Executable Policy Graph
+Components
 
-Output:
+- Profile System
+- Policy Modules
+- Policy Compiler
+- Executable Policy Graph
+
+Output
 
 Runtime Policies
+
+---
+
 Layer 4 — Knowledge Layer
 
-Pusat seluruh Engineering Knowledge.
+Purpose
 
-Komponen:
+Menyimpan seluruh pengetahuan engineering sebagai sumber kebenaran utama.
 
-Universal Artifact Model
-Metadata
-Knowledge Graph
-Registry
-Dependency Graph
-Evidence Graph (direkomendasikan sebagai spesifikasi berikutnya)
+Components
 
-Output:
+- Universal Artifact Model
+- Metadata Registry
+- Knowledge Graph
+- Dependency Graph
+- Evidence Graph
+- Artifact Registry
+- Semantic Index
+
+Output
 
 Unified Knowledge Model
+
+---
+
 Layer 5 — Kernel Layer
 
-Kernel mengorkestrasi seluruh sistem.
+Purpose
 
-Komponen:
+Mengorkestrasi seluruh layanan inti NAEOS.
 
-Knowledge Kernel
-Policy Kernel
-Compiler Kernel
-Validation Kernel
-AI Kernel
-Runtime Kernel
-Event Bus
-Plugin Manager
+Components
 
-Output:
+- Knowledge Kernel
+- Policy Kernel
+- Compiler Kernel
+- Validation Kernel
+- Runtime Kernel
+- AI Kernel
+- Event Bus
+- Plugin Manager
+
+Output
 
 Kernel Services
+
+---
+
 Layer 6 — Execution Layer
 
-Menjalankan proses engineering.
+Purpose
 
-Komponen:
+Menjalankan seluruh proses engineering.
 
-Compiler
-Validator
-Generator
-AI Runtime
-SDK Builder
-Documentation Builder
+Components
 
-Output:
+- Compiler
+- Validator
+- Generator
+- Documentation Builder
+- SDK Builder
+- AI Runtime
+- Packaging Engine
+
+Output
 
 Engineering Outputs
+
+---
+
 Layer 7 — Integration Layer
 
-Menghubungkan NAEOS dengan dunia luar.
+Purpose
 
-Adapter:
+Menghubungkan NAEOS dengan ekosistem eksternal.
 
-GitHub
-GitLab
-VS Code
-JetBrains IDE
-CI/CD
-Docker
-Kubernetes
-MCP
-AI Providers
-Cloud Providers
+Standard Adapters
 
-Output:
+- GitHub
+- GitLab
+- VS Code
+- JetBrains IDE
+- Docker
+- Kubernetes
+- MCP
+- OpenAI
+- Anthropic
+- Google AI
+- Ollama
+- Cloud Providers
 
-Integrasi standar
+Output
+
+Standard Integrations
+
+---
+
 Layer 8 — Experience Layer
 
-Interaksi pengguna.
+Purpose
 
-Komponen:
+Menyediakan antarmuka bagi pengguna.
 
-CLI
-Desktop Studio
-Web Studio
-Dashboard
-AI Chat
-Visual Graph Explorer
-Documentation Portal
+Components
 
-Output:
+- CLI
+- Desktop Studio
+- Web Studio
+- Dashboard
+- AI Chat
+- Visual Graph Explorer
+- Documentation Portal
+- Prompt Studio
 
-User Experience
+Output
+
+Unified User Experience
+
+---
+
 Cross-Cutting Capabilities
 
-Seluruh layer berbagi kemampuan berikut:
+Seluruh layer wajib mendukung:
 
-Security
-Observability
-Audit
-Versioning
-Compliance
-Traceability
-Performance
-Localization
-Logical View
+- Security
+- Observability
+- Audit
+- Versioning
+- Compliance
+- Traceability
+- Performance
+- Localization
+- Telemetry
+- Logging
+- Metrics
+
+---
+
+Logical Architecture
+
 Governance
       │
       ▼
@@ -220,7 +319,11 @@ Integration Layer
       │
       ▼
 Experience Layer
-Runtime Flow
+
+---
+
+Runtime Execution Flow
+
 Project
       │
       ▼
@@ -246,44 +349,109 @@ AI Runtime
       │
       ▼
 Generated Outputs
+
+---
+
 Deployment Topologies
 
 Reference Architecture harus mendukung:
 
 Local
-Developer Laptop
+
+- Developer Laptop
+- Offline Mode
+
 Team
-Shared Repository
-Shared Registry
+
+- Shared Repository
+- Shared Registry
+- Shared Knowledge Graph
+
 Enterprise
-Multi-tenant
-HA
-Distributed Workers
-Cloud Native
-Kubernetes
-Serverless
-Hybrid Cloud
+
+- Multi-Tenant
+- High Availability
+- Distributed Workers
+- Kubernetes
+- Cloud Native
+- Hybrid Cloud
+- Serverless
+
+---
+
 Architectural Decisions
 
-Setiap implementasi NAEOS MUST:
+Implementasi NAEOS MUST:
 
-mengikuti Layered Architecture,
-menggunakan Event Bus internal,
-memisahkan Kernel dari Plugin,
-mendukung Profile dan Policy,
-menggunakan Knowledge Graph sebagai sumber utama.
+- menggunakan Layered Architecture;
+- memisahkan Kernel dari Plugin;
+- menggunakan Event Bus internal;
+- mengompilasi seluruh Policy sebelum eksekusi;
+- menjadikan Knowledge Graph sebagai sumber kebenaran utama;
+- mendukung Profile System;
+- menyediakan observability pada setiap layer.
+
+Implementasi SHOULD:
+
+- mendukung deployment cloud-native;
+- menggunakan antarmuka modular;
+- memiliki kemampuan ekstensi melalui Plugin SDK.
+
+Implementasi MAY:
+
+- menyediakan adapter tambahan;
+- menggunakan AI Provider lokal maupun cloud;
+- menambahkan layer pengalaman khusus sesuai kebutuhan organisasi.
+
+---
+
 Conformance
 
-Implementasi dianggap sesuai jika:
+Implementasi dianggap sesuai dengan NRA apabila:
 
-seluruh layer inti tersedia,
-Kernel mengelola lifecycle modul,
-Policy diterapkan sebelum eksekusi,
-seluruh artefak berada dalam Knowledge Graph,
-Rule berasal dari Policy Compiler.
+- seluruh delapan layer tersedia;
+- Kernel mengelola lifecycle seluruh modul;
+- seluruh aturan berasal dari Policy Compiler;
+- Policy dievaluasi sebelum proses eksekusi;
+- seluruh artefak diregistrasikan dalam Knowledge Graph;
+- seluruh modul mendukung versioning dan observability.
+
+---
+
+Security Considerations
+
+Setiap implementasi wajib:
+
+- memisahkan data dan kebijakan;
+- menerapkan autentikasi dan otorisasi;
+- menjaga integritas artefak;
+- menyediakan audit trail;
+- mendukung enkripsi data sensitif.
+
+---
+
+Future Specifications
+
+Spesifikasi berikut akan melengkapi NRA:
+
+- NAEOS Kernel Specification
+- NAEOS Policy Specification
+- NAEOS Knowledge Graph Specification
+- NAEOS Runtime Specification
+- NAEOS Plugin Specification
+- NAEOS AI Runtime Specification
+- NAEOS Experience Specification
+
+---
+
 Status
-NAEOS-NRA-001
 
-APPROVED
+Document ID: NAEOS-NRA-001
 
-Reference Architecture Established
+Status: APPROVED
+
+Maturity: Stable
+
+Normative: Yes
+
+«"The NAEOS Reference Architecture is the canonical architectural blueprint for every compliant NAEOS implementation."»
