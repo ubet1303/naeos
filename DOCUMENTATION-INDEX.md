@@ -49,13 +49,23 @@ This document serves as the master index for navigating the NAEOS repository.
 - [ROADMAP.md](ROADMAP.md) — project development roadmap.
 - [CHANGELOG.md](CHANGELOG.md) — version history and release notes.
 
-## 6. Templates and processes
+## 6. Architecture Decision Records (ADRs)
+- [docs/adr/001-why-go-for-runtime.md](docs/adr/001-why-go-for-runtime.md) — ADR-001: Why Go for the Runtime
+- [docs/adr/002-why-neir-as-central-model.md](docs/adr/002-why-neir-as-central-model.md) — ADR-002: Why NEIR as the Central Model
+- [docs/adr/003-why-mcp-for-ai-integration.md](docs/adr/003-why-mcp-for-ai-integration.md) — ADR-003: Why MCP for AI Integration
+- [docs/adr/004-database-layer.md](docs/adr/004-database-layer.md) — ADR-004: Database Layer (PostgreSQL, MySQL, SQLite)
+- [docs/adr/005-websocket-communication.md](docs/adr/005-websocket-communication.md) — ADR-005: WebSocket Communication
+- [docs/adr/006-distributed-task-execution.md](docs/adr/006-distributed-task-execution.md) — ADR-006: Distributed Task Execution
+- [docs/adr/007-prompt-library.md](docs/adr/007-prompt-library.md) — ADR-007: Prompt Library
+- [docs/adr/008-wasm-plugin-sandbox.md](docs/adr/008-wasm-plugin-sandbox.md) — ADR-008: WASM Plugin Sandbox
+
+## 7. Templates and processes
 - [templates/ADR-template.md](templates/ADR-template.md) — Architecture Decision Record template.
 - [templates/RFC-template.md](templates/RFC-template.md) — Request for Comments template.
 - [examples/adr-example.md](examples/adr-example.md) — completed ADR example.
 - [examples/rfc-example.md](examples/rfc-example.md) — completed RFC example.
 
-## 7. Modular documentation structure
+## 8. Modular documentation structure
 - [docs/README.md](docs/README.md) — NAEOS documentation structure map.
 - [docs/NES-000-Foundation.md](docs/NES-000-Foundation.md) — foundation.
 - [docs/NES-001-Repository.md](docs/NES-001-Repository.md) — repository.
@@ -106,9 +116,9 @@ This document serves as the master index for navigating the NAEOS repository.
 - [docs/NES-052-CICD.md](docs/NES-052-CICD.md) — CI/CD pipeline automation.
 - [docs/NES-053-WASMPlugin.md](docs/NES-053-WASMPlugin.md) — WASM plugin sandboxed execution.
 
-## 8. Reading recommendations
+## 9. Reading recommendations
 
-### 8.1 For beginners (understanding the project)
+### 9.1 For beginners (understanding the project)
 Suggested reading order:
 1. [README.md](README.md)
 2. [GETTING-STARTED.md](GETTING-STARTED.md)
@@ -116,7 +126,7 @@ Suggested reading order:
 4. [constitution/NAEOS-CON-001.md](constitution/NAEOS-CON-001.md)
 5. [policy/NAEOS-POL-001.md](policy/NAEOS-POL-001.md)
 
-### 8.2 For the policy system
+### 9.2 For the policy system
 To understand and use the policy system, read in this order:
 1. [policy/NAEOS-POL-001.md](policy/NAEOS-POL-001.md) — understand basic policy compiler concepts
 2. [policy/NAEOS-POL-003.md](policy/NAEOS-POL-003.md) — see concrete policy examples
@@ -126,7 +136,7 @@ To understand and use the policy system, read in this order:
 6. [policy/NAEOS-POL-005.md](policy/NAEOS-POL-005.md) — technical deep dive (optional, for developers)
 7. [policy/NAEOS-POL-007.md](policy/NAEOS-POL-007.md) — troubleshooting when needed
 
-### 8.3 For CLI users
+### 9.3 For CLI users
 To use NAEOS directly, read in this order:
 1. [docs/NES-028-CLI-Reference.md](docs/NES-028-CLI-Reference.md) — complete CLI commands
 2. [docs/NES-029-Configuration.md](docs/NES-029-Configuration.md) — configuration format
@@ -134,12 +144,12 @@ To use NAEOS directly, read in this order:
 4. [examples/spec-minimal.yaml](examples/spec-minimal.yaml) — minimal specification example
 5. [examples/spec-full.yaml](examples/spec-full.yaml) — full specification example
 
-### 8.4 For developers & testing
+### 9.4 For developers & testing
 1. [docs/NES-033-Testing-Guide.md](docs/NES-033-Testing-Guide.md) — testing guide
 2. [docs/NES-031-Errors.md](docs/NES-031-Errors.md) — error catalog
 3. [docs/NES-032-Telemetry.md](docs/NES-032-Telemetry.md) — observability
 
-### 8.5 For the profile system
+### 9.5 For the profile system
 To understand and use the profile system, read in this order:
 1. [profile/NAEOS-PRO-001.md](profile/NAEOS-PRO-001.md) — understand basic concepts
 2. [profile/NAEOS-PRO-003.md](profile/NAEOS-PRO-003.md) — see concrete examples
@@ -149,7 +159,7 @@ To understand and use the profile system, read in this order:
 6. [profile/NAEOS-PRO-007.md](profile/NAEOS-PRO-007.md) — troubleshooting when needed
 7. [profile/NAEOS-PRO-006.md](profile/NAEOS-PRO-006.md) — upgrade guide when upgrading
 
-## 9. Go package reference documents
+## 10. Go package reference documents
 The following documents directly reference Go packages in this repository:
 - [docs/NES-002-Kernel-API.md](docs/NES-002-Kernel-API.md) — API publik `pkg/kernel`.
 - [docs/NES-023-NEIR-Model.md](docs/NES-023-NEIR-Model.md) — model `internal/neir/model`.
@@ -166,7 +176,7 @@ The following documents directly reference Go packages in this repository:
 - [docs/NES-039-SDK-MultiLanguage.md](docs/NES-039-SDK-MultiLanguage.md) — SDK multi-language `internal/generation/adapters`.
 - [docs/NES-040-Output-Adapter-Architecture.md](docs/NES-040-Output-Adapter-Architecture.md) — adapter architecture `internal/generation/adapters`.
 
-## 10. Navigation notes
+## 11. Navigation notes
 - Use this document as your entry point when searching for a specific topic.
 - To understand the overall project, start with the core documents first.
 - For contributions, see [CONTRIBUTING.md](CONTRIBUTING.md).
