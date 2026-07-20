@@ -191,6 +191,7 @@ func TestOIDCDiscoveryNotConfigured(t *testing.T) {
 }
 
 func TestPipelineStatusEndpoint(t *testing.T) {
+	t.Setenv("NAEOS_PIPELINES_FILE", t.TempDir()+"/pipelines.json")
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/pipeline/status", nil)
@@ -768,6 +769,7 @@ func TestConfigSchemaEndpoint(t *testing.T) {
 }
 
 func TestPipelinesEndpoint(t *testing.T) {
+	t.Setenv("NAEOS_PIPELINES_FILE", t.TempDir()+"/pipelines.json")
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/pipelines", nil)

@@ -1,7 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -19,7 +23,7 @@ func newComplianceCommand() *cobra.Command {
 }
 
 func newComplianceExportCommand() *cobra.Command {
-	var format, output string
+	var format, output, auditFile string
 
 	cmd := &cobra.Command{
 		Use:   "export",
@@ -38,7 +42,39 @@ Example:
 				return fmt.Errorf("--output is required")
 			}
 
+			path := auditFile
+			if path == "" {
+				homeDir, err := os.UserHomeDir()
+				if err != nil {
+					return fmt.Errorf("cannot determine home directory: %w", err)
+				}
+				path = filepath.Join(homeDir, ".naeos", "audit.log")
+			}
+
+			var events []audit.AuditEvent
+			data, err := os.ReadFile(path)
+			if err != nil {
+				if !os.IsNotExist(err) {
+					return fmt.Errorf("reading audit file: %w", err)
+				}
+			} else {
+				lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+				for _, line := range lines {
+					if line == "" {
+						continue
+					}
+					var evt audit.AuditEvent
+					if err := json.Unmarshal([]byte(line), &evt); err != nil {
+						return fmt.Errorf("parsing audit line: %w", err)
+					}
+					events = append(events, evt)
+				}
+			}
+
 			auditor := audit.NewMemoryAuditor()
+			for _, evt := range events {
+				_ = auditor.Log(evt)
+			}
 
 			switch format {
 			case "json":
@@ -58,6 +94,7 @@ Example:
 
 	cmd.Flags().StringVarP(&format, "format", "f", "json", "export format: json or csv")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "output file path (required)")
+	cmd.Flags().StringVarP(&auditFile, "audit-file", "a", "", "path to audit log file (default: ~/.naeos/audit.log)")
 	_ = cmd.MarkFlagRequired("output")
 	return cmd
 }

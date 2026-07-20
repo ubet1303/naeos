@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/NAEOS-foundation/naeos/internal/securityext"
 )
 
 type Snapshot struct {
@@ -352,9 +354,16 @@ func (s *SnapshotStore) Import(srcPath string) (*Snapshot, error) {
 			return nil, err
 		}
 
-		target := filepath.Join(snapDir, header.Name) //nolint:gosec // G305: path traversal validated on next line
-		if header.Name != "." && !strings.HasPrefix(filepath.Clean(target), filepath.Clean(snapDir)+string(os.PathSeparator)) {
+		target, err := securityext.ValidateFilePath(filepath.Join(snapDir, header.Name), snapDir)
+		if err != nil {
 			return nil, fmt.Errorf("invalid path in archive: %s", header.Name)
+		}
+		if header.Typeflag == tar.TypeSymlink || header.Typeflag == tar.TypeLink {
+			linkTarget, err := securityext.ValidateFilePath(filepath.Join(snapDir, header.Linkname), snapDir)
+			if err != nil {
+				return nil, fmt.Errorf("symlink target escapes snapshot directory: %s", header.Linkname)
+			}
+			_ = linkTarget
 		}
 		if header.FileInfo().IsDir() {
 			if err := os.MkdirAll(target, 0o755); err != nil {

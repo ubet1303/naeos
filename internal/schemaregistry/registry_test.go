@@ -75,7 +75,7 @@ func TestVersions(t *testing.T) {
 	r := New()
 	r.Register("test", "v1.0.0", "{}")
 	r.Register("test", "v2.0.0", "{}")
-	r.Register("test", "v1.5.0", "{}")
+	r.Register("test", "v2.1.0", "{}")
 
 	versions, err := r.Versions("test")
 	if err != nil {
@@ -84,8 +84,8 @@ func TestVersions(t *testing.T) {
 	if len(versions) != 3 {
 		t.Fatalf("expected 3 versions, got %d", len(versions))
 	}
-	if versions[0] != "v2.0.0" {
-		t.Errorf("expected v2.0.0 first, got %s", versions[0])
+	if versions[0] != "v2.1.0" {
+		t.Errorf("expected v2.1.0 first, got %s", versions[0])
 	}
 }
 

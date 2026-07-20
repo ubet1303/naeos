@@ -98,6 +98,7 @@ func (r *RealRabbitMQ) Publish(channel string, msg *Message) error {
 			channel, true, false, false, false, nil,
 		)
 		if err != nil {
+			slog.Error("rabbitmq declare queue failed", "channel", channel, "error", err)
 			return fmt.Errorf("declare queue %s: %w", channel, err)
 		}
 		r.queues[channel] = queue
@@ -142,6 +143,7 @@ func (r *RealRabbitMQ) Subscribe(channel string, handler MessageHandler) error {
 		queue.Name, "", false, false, false, false, nil,
 	)
 	if err != nil {
+		slog.Error("rabbitmq consume failed", "channel", channel, "error", err)
 		return fmt.Errorf("consume from %s: %w", channel, err)
 	}
 

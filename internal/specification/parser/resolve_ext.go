@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/NAEOS-foundation/naeos/internal/securityext"
 )
 
 var includePattern = regexp.MustCompile(`\$include\{([^}]+)\}`)
@@ -50,6 +52,15 @@ func (r *IncludeResolver) resolveWithDepth(input string, depth int) (string, err
 			filePath = filepath.Join(r.baseDir, filePath)
 		}
 		filePath = filepath.Clean(filePath)
+		if r.baseDir != "" {
+			var err error
+			filePath, err = securityext.ValidateFilePath(filePath, r.baseDir)
+			if err != nil {
+				return "", fmt.Errorf("path traversal in include: %w", err)
+			}
+		} else if strings.Contains(filePath, "..") {
+			return "", fmt.Errorf("path traversal detected in include: %s", matches[1])
+		}
 
 		if cached, ok := r.loaded[filePath]; ok {
 			result = strings.Replace(result, matches[0], cached, 1)
@@ -117,6 +128,15 @@ func (r *ImportResolver) resolveWithDepth(input string, depth int) (string, erro
 			filePath = filepath.Join(r.baseDir, filePath)
 		}
 		filePath = filepath.Clean(filePath)
+		if r.baseDir != "" {
+			var err error
+			filePath, err = securityext.ValidateFilePath(filePath, r.baseDir)
+			if err != nil {
+				return "", fmt.Errorf("path traversal in import: %w", err)
+			}
+		} else if strings.Contains(filePath, "..") {
+			return "", fmt.Errorf("path traversal detected in import: %s", matches[1])
+		}
 
 		cacheKey := filePath + "::" + section
 		if cached, ok := r.loaded[cacheKey]; ok {

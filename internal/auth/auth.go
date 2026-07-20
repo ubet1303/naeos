@@ -423,21 +423,29 @@ func (m *SessionManager) Cleanup() int {
 // Auth Manager
 
 type Manager struct {
-	rbac     *RBAC
-	apiKeys  *APIKeyManager
-	sessions *SessionManager
-	oauth2   map[string]OAuth2ProviderInterface
-	users    map[string]*User
-	mu       sync.RWMutex
+	rbac       *RBAC
+	apiKeys    *APIKeyManager
+	sessions   *SessionManager
+	oauth2     map[string]OAuth2ProviderInterface
+	users      map[string]*User
+	mu         sync.RWMutex
+	userStore  *UserStore
+	passphrase string
 }
 
-func NewManager() *Manager {
+func NewManager(passphrase ...string) *Manager {
+	p := ""
+	if len(passphrase) > 0 {
+		p = passphrase[0]
+	}
 	return &Manager{
-		rbac:     NewRBAC(),
-		apiKeys:  NewAPIKeyManager(),
-		sessions: NewSessionManager(),
-		oauth2:   make(map[string]OAuth2ProviderInterface),
-		users:    make(map[string]*User),
+		rbac:       NewRBAC(),
+		apiKeys:    NewAPIKeyManager(),
+		sessions:   NewSessionManager(),
+		oauth2:     make(map[string]OAuth2ProviderInterface),
+		users:      make(map[string]*User),
+		userStore:  NewUserStore(p),
+		passphrase: p,
 	}
 }
 

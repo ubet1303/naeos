@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -473,6 +474,7 @@ func (m *Manager) ConnectAll(configs map[string]*Config) error {
 			continue
 		}
 		if err := db.Connect(config); err != nil {
+			slog.Error("database connect failed", "name", name, "error", err)
 			return fmt.Errorf("failed to connect to %s: %w", name, err)
 		}
 	}
@@ -485,6 +487,7 @@ func (m *Manager) CloseAll() error {
 
 	for name, db := range m.databases {
 		if err := db.Close(); err != nil {
+			slog.Error("database close failed", "name", name, "error", err)
 			return fmt.Errorf("failed to close %s: %w", name, err)
 		}
 	}
@@ -553,13 +556,16 @@ func New(driver string) Database {
 
 func NewFromConfig(driver string, config *Config) (Database, error) {
 	if err := config.Validate(); err != nil {
+		slog.Error("invalid database config", "driver", driver, "error", err)
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 	db := New(driver)
 	if db == nil {
+		slog.Error("unsupported database driver", "driver", driver)
 		return nil, fmt.Errorf("unsupported driver: %s", driver)
 	}
 	if err := db.Connect(config); err != nil {
+		slog.Error("database connect failed", "driver", driver, "error", err)
 		return nil, fmt.Errorf("connect: %w", err)
 	}
 	return db, nil

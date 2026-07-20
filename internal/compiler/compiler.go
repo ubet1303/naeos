@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -73,6 +74,7 @@ func (c *Compiler) Register(a Adapter) {
 func (c *Compiler) Compile(neir *model.NEIR, target Target) (*CompiledOutput, error) {
 	a, ok := c.adapters[target]
 	if !ok {
+		slog.Error("unknown compile target", "target", target)
 		return nil, fmt.Errorf("unknown target: %s", target)
 	}
 	return a.Compile(neir)

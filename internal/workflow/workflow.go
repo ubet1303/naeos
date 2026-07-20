@@ -359,7 +359,7 @@ func (w *Workflow) ExecuteParallelGroup(ctx context.Context, groups []*ParallelS
 			}
 		}
 		if len(errs) > 0 {
-			w.Context.Error = errs[0]
+			w.Context.Error = errors.Join(errs...)
 			_ = w.Machine.Trigger("error")
 			return fmt.Errorf("parallel steps failed: %w", errors.Join(errs...))
 		}

@@ -22,6 +22,7 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/planner/scheduler"
 	"github.com/NAEOS-foundation/naeos/internal/registry"
 	naeoslog "github.com/NAEOS-foundation/naeos/internal/shared/log"
+	"github.com/NAEOS-foundation/naeos/internal/securityext"
 	"github.com/NAEOS-foundation/naeos/internal/specification/normalizer"
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 	"github.com/NAEOS-foundation/naeos/internal/specification/resolver"
@@ -171,7 +172,7 @@ func New(cfg Config) (*Pipeline, error) { //nolint:gocritic // Public API, value
 	}
 
 	if p.parser == nil {
-		p.parser = parser.NewParser()
+		p.parser = parser.NewParser(".")
 	}
 	if p.normalizer == nil {
 		p.normalizer = normalizer.NewNormalizer()
@@ -558,6 +559,9 @@ func (p *Pipeline) RunContext(ctx context.Context, input string) (*Result, error
 		if outputDir := p.outputDirValue; outputDir != "" && !p.dryRun {
 			p.logVerbose("writing %d artifacts to %s", len(artifacts), outputDir)
 			for _, artifact := range artifacts {
+				if _, err := securityext.ValidateFilePath(filepath.Join(outputDir, artifact.Path), outputDir); err != nil {
+					return nil, fmt.Errorf("invalid artifact path: %w", err)
+				}
 				artifactPath := filepath.Join(outputDir, artifact.Path)
 				if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
 					return nil, fmt.Errorf("create artifact dir: %w", err)

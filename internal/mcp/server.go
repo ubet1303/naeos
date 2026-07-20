@@ -318,7 +318,7 @@ func (s *Server) callTool(name string, args map[string]any) (*CallResult, error)
 		if spec == "" {
 			return nil, fmt.Errorf("spec is required")
 		}
-		p := parser.NewParser()
+		p := parser.NewParser(".")
 		doc, err := p.Parse(spec)
 		if err != nil {
 			return &CallResult{
@@ -336,7 +336,7 @@ func (s *Server) callTool(name string, args map[string]any) (*CallResult, error)
 		if spec == "" {
 			return nil, fmt.Errorf("spec is required")
 		}
-		p := parser.NewParser()
+		p := parser.NewParser(".")
 		doc, err := p.Parse(spec)
 		if err != nil {
 			return &CallResult{
@@ -363,7 +363,7 @@ func (s *Server) callTool(name string, args map[string]any) (*CallResult, error)
 		if spec == "" {
 			return nil, fmt.Errorf("spec is required")
 		}
-		p := parser.NewParser()
+		p := parser.NewParser(".")
 		doc, err := p.Parse(spec)
 		if err != nil {
 			return nil, fmt.Errorf("parse failed: %w", err)
@@ -388,7 +388,7 @@ func (s *Server) callTool(name string, args map[string]any) (*CallResult, error)
 		if spec == "" {
 			return nil, fmt.Errorf("spec is required")
 		}
-		p := parser.NewParser()
+		p := parser.NewParser(".")
 		doc, err := p.Parse(spec)
 		if err != nil {
 			return nil, fmt.Errorf("parse failed: %w", err)
@@ -491,7 +491,7 @@ func (s *Server) handleGetPipelineStatus(jobID string) (*CallResult, error) {
 }
 
 func (s *Server) handleExportTerraform(spec string) (*CallResult, error) {
-	p := parser.NewParser()
+	p := parser.NewParser(".")
 	doc, err := p.Parse(spec)
 	if err != nil {
 		return nil, fmt.Errorf("parse failed: %w", err)

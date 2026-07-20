@@ -455,18 +455,43 @@ func (lb *LoadBalancer) WorkerCount() int {
 }
 
 type ResultAggregator struct {
-	results []TaskResult
-	mu      sync.Mutex
+	results   []TaskResult
+	mu        sync.Mutex
+	resultsCh chan *TaskResult
+	closeOnce sync.Once
+	streaming bool
 }
 
 func NewResultAggregator() *ResultAggregator {
-	return &ResultAggregator{}
+	return &ResultAggregator{
+		resultsCh: make(chan *TaskResult, 100),
+	}
 }
 
 func (ra *ResultAggregator) Add(result TaskResult) {
 	ra.mu.Lock()
-	defer ra.mu.Unlock()
 	ra.results = append(ra.results, result)
+	ra.mu.Unlock()
+	if ra.streaming {
+		select {
+		case ra.resultsCh <- &result:
+		default:
+		}
+	}
+}
+
+func (ra *ResultAggregator) EnableStreaming() {
+	ra.streaming = true
+}
+
+func (ra *ResultAggregator) StartStreaming() <-chan *TaskResult {
+	return ra.resultsCh
+}
+
+func (ra *ResultAggregator) Close() {
+	ra.closeOnce.Do(func() {
+		close(ra.resultsCh)
+	})
 }
 
 func (ra *ResultAggregator) All() []TaskResult {

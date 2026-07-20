@@ -506,6 +506,7 @@ func PublishWithRetry(b Broker, channel string, msg *Message, rc *RetryConfig) e
 			time.Sleep(rc.delay(attempt))
 		}
 	}
+	slog.Error("publish failed after retries", "max_attempts", rc.MaxAttempts, "error", lastErr)
 	return fmt.Errorf("publish failed after %d attempts: %w", rc.MaxAttempts, lastErr)
 }
 
@@ -532,6 +533,7 @@ func (dlc *DeadLetterChannel) Handler() MessageHandler {
 		case dlc.messages <- msg:
 			return nil
 		default:
+			slog.Error("dead letter queue full")
 			return fmt.Errorf("dead letter queue full")
 		}
 	}
@@ -745,6 +747,7 @@ func (cp *ConnectionPool) CloseAll() error {
 	defer cp.mu.RUnlock()
 	for _, b := range cp.brokers {
 		if err := b.Close(); err != nil {
+			slog.Error("connection pool close failed", "error", err)
 			return err
 		}
 	}

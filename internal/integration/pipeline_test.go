@@ -60,7 +60,7 @@ generation:
 
 func parseAndBuild(t *testing.T, spec string) (*model.NEIR, *parser.SpecDocument) {
 	t.Helper()
-	p := parser.NewParser()
+	p := parser.NewParser(".")
 	doc, err := p.Parse(spec)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
@@ -182,7 +182,7 @@ func TestSpecMinimal(t *testing.T) {
 }
 
 func TestSpecToContextBundle(t *testing.T) {
-	p := parser.NewParser()
+	p := parser.NewParser(".")
 	doc, err := p.Parse(testSpec)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)

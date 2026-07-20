@@ -17,6 +17,7 @@ type SchemaEntry struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Summary   string    `json:"summary,omitempty"`
+	TenantID   string    `json:"tenant_id,omitempty"`
 }
 
 // Registry provides versioned JSON Schema storage and resolution.

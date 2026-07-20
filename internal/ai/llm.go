@@ -134,7 +134,9 @@ func NewLLMService(config LLMConfig, lib ...*promptlib.Library) *LLMService {
 
 // EnrichSpec sends a specification to the LLM for enhancement with best practices.
 func (s *LLMService) EnrichSpec(specContent string) (string, error) {
-	return s.EnrichSpecContext(context.Background(), specContent)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.Timeout)
+	defer cancel()
+	return s.EnrichSpecContext(ctx, specContent)
 }
 
 // EnrichSpecContext enriches a specification with context support.
@@ -166,7 +168,9 @@ Specification:
 
 // GenerateSuggestions asks the LLM to produce improvement suggestions for a specification.
 func (s *LLMService) GenerateSuggestions(specContent string) ([]Suggestion, error) {
-	return s.GenerateSuggestionsContext(context.Background(), specContent)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.Timeout)
+	defer cancel()
+	return s.GenerateSuggestionsContext(ctx, specContent)
 }
 
 // GenerateSuggestionsContext asks the LLM for improvement suggestions with context support.
@@ -209,7 +213,9 @@ Specification:
 
 // ExplainArchitecture asks the LLM to explain an architecture pattern in the context of the specification.
 func (s *LLMService) ExplainArchitecture(specContent, architecture string) (string, error) {
-	return s.ExplainArchitectureContext(context.Background(), specContent, architecture)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.Timeout)
+	defer cancel()
+	return s.ExplainArchitectureContext(ctx, specContent, architecture)
 }
 
 // ExplainArchitectureContext explains an architecture pattern with context support.

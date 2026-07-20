@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +29,7 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/multitenant"
 	"github.com/NAEOS-foundation/naeos/internal/pluginhost"
 	"github.com/NAEOS-foundation/naeos/internal/profiles"
+	"github.com/NAEOS-foundation/naeos/internal/schemaregistry"
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 	"github.com/NAEOS-foundation/naeos/internal/version"
 	naeosws "github.com/NAEOS-foundation/naeos/internal/websocket"
@@ -55,6 +57,7 @@ type Server struct {
 	store            *artifacts.Store
 	pipelines        []pipelineRun
 	pipelinesMu      sync.RWMutex
+	pipelinesFile    string
 	pipelineJobs     map[string]*pipelineJob
 	jobsMu           sync.RWMutex
 	deployments      []cloudDeployment
@@ -63,14 +66,30 @@ type Server struct {
 	metrics          *monitoring.Metrics
 	metricsRegistry  *monitoring.Registry
 	auditor          audit.Auditor
+	memoryAuditor    *audit.MemoryAuditor
 	wsServer         *naeosws.Server
 	mcpServer        *mcp.Server
 	db               database.Database
 	profiles         *profiles.Registry
 	profileSubs      map[string]*profiles.Subscription
+	schemas          *schemaregistry.Registry
 	profileSubMu     sync.Mutex
 	pipelineObserver pipeline.PipelineObserver
 	tenantWorkspace  *multitenant.Workspace
+}
+
+type multiAuditor struct {
+	file   *audit.FileAuditor
+	memory *audit.MemoryAuditor
+}
+
+func (m *multiAuditor) Log(event audit.AuditEvent) error {
+	if m.file != nil {
+		if err := m.file.Log(event); err != nil {
+			return err
+		}
+	}
+	return m.memory.Log(event)
 }
 
 type pipelineRun struct {
@@ -85,6 +104,7 @@ type pipelineRun struct {
 	CompletedAt string   `json:"completed_at,omitempty"`
 	Duration    string   `json:"duration,omitempty"`
 	Error       string   `json:"error,omitempty"`
+	TenantID    string   `json:"tenant_id,omitempty"`
 }
 
 type pipelineJob struct {
@@ -133,7 +153,7 @@ type ErrorResponse struct {
 }
 
 // NewServer creates a new API server with the given address and auth configuration.
-func NewServer(addr string, auth *AuthConfig) *Server {
+func NewServer(addr string, authCfg *AuthConfig) *Server {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})))
@@ -146,10 +166,16 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 	metrics := monitoring.NewMetrics()
 
 	routePerms := defaultRoutePermissions()
+	pipelinesFile := os.Getenv("NAEOS_PIPELINES_FILE")
+	if pipelinesFile == "" {
+		homeDir, _ := os.UserHomeDir()
+		pipelinesFile = filepath.Join(homeDir, ".naeos", "pipelines.json")
+	}
+
 	s := &Server{
 		Addr:       addr,
 		Router:     http.NewServeMux(),
-		Auth:       auth,
+		Auth:       authCfg,
 		routePerms: routePerms,
 		CORS: &CORSConfig{
 			AllowedOrigins: []string{
@@ -160,21 +186,25 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 			AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 			AllowedHeaders: []string{"Content-Type", "Authorization"},
 		},
-		MaxBodySize:   10 << 20,
-		Limiter:       NewRateLimiter(100, time.Minute),
-		TenantLimiter: NewRateLimiter(1000, time.Minute),
-		APIKeys:       make(map[string]*RateLimiter),
-		parser:        parser.NewParser(),
-		compiler:      compiler.New(),
-		store:         store,
-		pipelineJobs:  make(map[string]*pipelineJob),
-		plugins:       pluginhost.NewManager(".naeos/plugins"),
+		MaxBodySize:     10 << 20,
+		Limiter:         NewRateLimiter(100, time.Minute),
+		TenantLimiter:   NewRateLimiter(1000, time.Minute),
+		APIKeys:         make(map[string]*RateLimiter),
+		parser:          parser.NewParser("."),
+		compiler:        compiler.New(),
+		store:           store,
+		pipelinesFile:   pipelinesFile,
+		pipelineJobs:    make(map[string]*pipelineJob),
+		plugins:         pluginhost.NewManager(".naeos/plugins"),
 		profiles:      profiles.NewRegistry(),
 		profileSubs:   make(map[string]*profiles.Subscription),
+		schemas:       schemaregistry.New(),
 	}
 
-	if auth != nil && auth.JWTSecret != "" {
-		s.jwt = NewJWTValidator(auth.JWTSecret)
+	s.loadPipelines()
+
+	if authCfg != nil && authCfg.JWTSecret != "" {
+		s.jwt = NewJWTValidator(authCfg.JWTSecret)
 	}
 	s.bundle = contextbundle.NewGenerator(s.compiler)
 	s.mcpServer = mcp.NewServer(s.compiler, s.bundle)
@@ -184,9 +214,60 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 	s.metrics = metrics
 	s.metricsRegistry = metrics.Registry()
 	s.pipelineObserver = monitoring.NewMetricsObserver(metrics)
-	s.auditor = audit.NewMemoryAuditor()
+
+	encKey := os.Getenv("NAEOS_ENCRYPTION_KEY")
+	s.authManager = auth.NewManager(encKey)
+	auth.SetupDefaultRoles(s.authManager.RBAC())
+
+	homeDir, _ := os.UserHomeDir()
+	fileAuditor, err := audit.NewFileAuditor(homeDir)
+	if err != nil {
+		slog.Warn("failed to create file auditor, audit log will be memory-only", "error", err)
+	}
+	memoryAuditor := audit.NewMemoryAuditor()
+	if fileAuditor != nil {
+		s.auditor = &multiAuditor{file: fileAuditor, memory: memoryAuditor}
+	} else {
+		s.auditor = memoryAuditor
+	}
+	s.memoryAuditor = memoryAuditor
+
 	s.setupRoutes()
 	return s
+}
+
+func (s *Server) loadPipelines() {
+	data, err := os.ReadFile(s.pipelinesFile)
+	if err != nil {
+		return
+	}
+	var runs []pipelineRun
+	if err := json.Unmarshal(data, &runs); err != nil {
+		slog.Warn("failed to decode pipelines file", "error", err)
+		return
+	}
+	s.pipelinesMu.Lock()
+	s.pipelines = runs
+	s.pipelinesMu.Unlock()
+	slog.Info("loaded pipeline runs from disk", "count", len(runs))
+}
+
+func (s *Server) savePipelines() {
+	s.pipelinesMu.RLock()
+	data, err := json.MarshalIndent(s.pipelines, "", "  ")
+	s.pipelinesMu.RUnlock()
+	if err != nil {
+		slog.Warn("failed to marshal pipelines", "error", err)
+		return
+	}
+	dir := filepath.Dir(s.pipelinesFile)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Warn("failed to create pipelines directory", "error", err)
+		return
+	}
+	if err := os.WriteFile(s.pipelinesFile, data, 0644); err != nil {
+		slog.Warn("failed to write pipelines file", "error", err)
+	}
 }
 
 func (s *Server) setupRoutes() {
@@ -222,6 +303,10 @@ func (s *Server) setupRoutes() {
 	s.Router.HandleFunc("/api/v1/profiles/unsubscribe", s.handleProfileUnsubscribe)
 	s.Router.HandleFunc("/api/v1/profiles/", s.handleProfileByID)
 
+	// Schema registry endpoints
+	s.Router.HandleFunc("/api/v1/schemas", s.handleSchemas)
+	s.Router.HandleFunc("/api/v1/schemas/", s.handleSchemaByPath)
+
 	// MCP endpoints
 	s.Router.HandleFunc("/api/v1/mcp/message", s.handleMCPMessage)
 
@@ -245,6 +330,10 @@ func (s *Server) setupRoutes() {
 	s.Router.HandleFunc("/api/v1/ai/enrich/stream", s.handleAIEnrichStream)
 	s.Router.HandleFunc("/api/v1/ai/explain/stream", s.handleAIExplainStream)
 	s.Router.HandleFunc("/api/v1/ai/compile/stream", s.handleAICompileStream)
+
+	// Multi-tenant endpoints
+	s.Router.HandleFunc("/api/v1/tenants", s.handleTenants)
+	s.Router.HandleFunc("/api/v1/tenants/", s.handleTenantByID)
 
 	// OIDC discovery
 	s.Router.HandleFunc("/.well-known/openid-configuration", s.handleOIDCDiscovery)
@@ -275,8 +364,11 @@ func defaultRoutePermissions() map[string]auth.RoutePermission {
 		"/api/v1/ai/explain/stream":    {Resource: auth.ResourceAI, Action: auth.ActionRead},
 		"/api/v1/ai/compile/stream":    {Resource: auth.ResourceAI, Action: auth.ActionWrite},
 		"/api/v1/config/schema":        {Resource: auth.ResourceConfig, Action: auth.ActionRead},
+		"/api/v1/schemas":              {Resource: auth.ResourceConfig, Action: auth.ActionRead},
 		"/api/v1/version":              {Resource: auth.ResourceAdmin, Action: auth.ActionRead},
 		"/api/v1/health":               {Resource: auth.ResourceAdmin, Action: auth.ActionRead},
+		"/api/v1/tenants":             {Resource: auth.ResourceAdmin, Action: auth.ActionRead},
+		"/api/v1/tenants/":            {Resource: auth.ResourceAdmin, Action: auth.ActionRead},
 	}
 }
 
@@ -352,28 +444,34 @@ func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFun
 			clientID = forwarded
 		}
 
+		var rateLimiter *RateLimiter
+		var rateLimitID string
+
 		apiKey := r.Header.Get("X-API-Key")
 		if apiKey != "" {
 			s.apiKeysMu.RLock()
 			limiter, exists := s.APIKeys[apiKey]
 			s.apiKeysMu.RUnlock()
 			if exists {
-				if !limiter.Allow(apiKey) {
-					s.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
-					return
-				}
+				rateLimiter = limiter
+				rateLimitID = apiKey
 			} else {
-				if !s.Limiter.Allow(clientID) {
-					s.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
-					return
-				}
+				rateLimiter = s.Limiter
+				rateLimitID = clientID
 			}
 		} else {
-			if !s.Limiter.Allow(clientID) {
-				s.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
-				return
-			}
+			rateLimiter = s.Limiter
+			rateLimitID = clientID
 		}
+
+		if !rateLimiter.Allow(rateLimitID) {
+			s.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
+			return
+		}
+
+		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(rateLimiter.Rate()))
+		w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(rateLimiter.Remaining(rateLimitID)))
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(rateLimiter.ResetTime(rateLimitID).Unix(), 10))
 
 		// CORS
 		origin := r.Header.Get("Origin")
@@ -474,9 +572,14 @@ func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFun
 			if v, ok := r.Context().Value(TenantContextKey).(string); ok {
 				tenantID = v
 			}
-			if tenantID != "" && !s.TenantLimiter.Allow(tenantID) {
-				s.writeError(w, http.StatusTooManyRequests, "tenant rate limit exceeded")
-				return
+			if tenantID != "" {
+				w.Header().Set("X-RateLimit-Limit", strconv.Itoa(s.TenantLimiter.Rate()))
+				w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(s.TenantLimiter.Remaining(tenantID)))
+				w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(s.TenantLimiter.ResetTime(tenantID).Unix(), 10))
+				if !s.TenantLimiter.Allow(tenantID) {
+					s.writeError(w, http.StatusTooManyRequests, "tenant rate limit exceeded")
+					return
+				}
 			}
 		}
 
@@ -928,6 +1031,8 @@ func (s *Server) handlePipelineRun(w http.ResponseWriter, r *http.Request) {
 			modNames = append(modNames, m.Name)
 		}
 
+		tenantID, _ := r.Context().Value(TenantContextKey).(string)
+
 		run := pipelineRun{
 			ID:          jobID,
 			Status:      "completed",
@@ -937,6 +1042,7 @@ func (s *Server) handlePipelineRun(w http.ResponseWriter, r *http.Request) {
 			Services:    len(doc.Services),
 			ModuleNames: modNames,
 			CreatedAt:   startTime.Format(time.RFC3339),
+			TenantID:    tenantID,
 		}
 
 		func() {
@@ -960,6 +1066,8 @@ func (s *Server) handlePipelineRun(w http.ResponseWriter, r *http.Request) {
 				s.pipelinesMu.Lock()
 				s.pipelines = append(s.pipelines, run)
 				s.pipelinesMu.Unlock()
+
+				s.savePipelines()
 
 				if s.db != nil {
 					if _, err := s.db.Exec("INSERT INTO pipeline_runs (id, status, project, modules, services, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -1798,6 +1906,8 @@ func (s *Server) handlePipelines(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
+	tenantFilter, _ := r.Context().Value(TenantContextKey).(string)
+
 	s.pipelinesMu.RLock()
 	filtered := make([]pipelineRun, 0, len(s.pipelines))
 	for _, p := range s.pipelines {
@@ -1805,6 +1915,9 @@ func (s *Server) handlePipelines(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if projectSearch != "" && !strings.Contains(strings.ToLower(p.Project), projectSearch) {
+			continue
+		}
+		if tenantFilter != "" && p.TenantID != tenantFilter {
 			continue
 		}
 		filtered = append(filtered, p)
@@ -1836,6 +1949,115 @@ func (s *Server) handlePipelines(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleSchemas(w http.ResponseWriter, r *http.Request) {
+	tenantFilter, _ := r.Context().Value(TenantContextKey).(string)
+
+	switch r.Method {
+	case "GET":
+		names := s.schemas.List()
+		result := make([]map[string]any, 0, len(names))
+		for _, name := range names {
+			if tenantFilter != "" {
+				entry, err := s.schemas.Get(name, "")
+				if err != nil || entry.TenantID != tenantFilter {
+					continue
+				}
+			}
+			versions, err := s.schemas.Versions(name)
+			if err != nil {
+				continue
+			}
+			result = append(result, map[string]any{
+				"name":     name,
+				"versions": versions,
+			})
+		}
+		s.writeJSON(w, http.StatusOK, map[string]any{
+			"schemas": result,
+			"count":   len(result),
+		})
+	case "POST":
+		var req struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+			Schema  string `json:"schema"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if req.Name == "" || req.Version == "" || req.Schema == "" {
+			s.writeError(w, http.StatusBadRequest, "name, version, and schema are required")
+			return
+		}
+		if err := s.schemas.Register(req.Name, req.Version, req.Schema); err != nil {
+			s.writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		entry, err := s.schemas.Get(req.Name, req.Version)
+		if err != nil {
+			s.writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		s.writeJSON(w, http.StatusCreated, entry)
+	default:
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (s *Server) handleSchemaByPath(w http.ResponseWriter, r *http.Request) {
+	tenantFilter, _ := r.Context().Value(TenantContextKey).(string)
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/schemas/")
+	parts := strings.SplitN(path, "/", 2)
+	name := parts[0]
+	if name == "" {
+		s.writeError(w, http.StatusBadRequest, "schema name is required")
+		return
+	}
+	version := ""
+	if len(parts) > 1 {
+		version = parts[1]
+	}
+	switch r.Method {
+	case "GET":
+		entry, err := s.schemas.Get(name, version)
+		if err != nil {
+			s.writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if tenantFilter != "" && entry.TenantID != tenantFilter {
+			s.writeError(w, http.StatusNotFound, "schema not found")
+			return
+		}
+		if version == "" {
+			versions, err := s.schemas.Versions(name)
+			if err != nil {
+				s.writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			s.writeJSON(w, http.StatusOK, map[string]any{
+				"schema":   entry,
+				"versions": versions,
+			})
+		} else {
+			s.writeJSON(w, http.StatusOK, entry)
+		}
+	case "DELETE":
+		if version == "" {
+			s.writeError(w, http.StatusBadRequest, "version is required for deletion")
+			return
+		}
+		if err := s.schemas.Delete(name, version); err != nil {
+			s.writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
 func (s *Server) issuerFromRequest(r *http.Request) string {
 	issuer := fmt.Sprintf("http://%s", r.Host)
 	if fwd := r.Header.Get("X-Forwarded-Host"); fwd != "" {
@@ -1853,6 +2075,66 @@ func (s *Server) handleOIDCDiscovery(w http.ResponseWriter, r *http.Request) {
 	doc := s.jwt.OIDCDiscoveryDocument(issuer)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(doc)
+}
+
+func (s *Server) handleTenants(w http.ResponseWriter, r *http.Request) {
+	if s.tenantWorkspace == nil {
+		s.writeError(w, http.StatusNotFound, "tenant workspace not configured")
+		return
+	}
+	switch r.Method {
+	case "GET":
+		tenants := s.tenantWorkspace.ListTenants()
+		s.writeJSON(w, http.StatusOK, map[string]any{
+			"tenants": tenants,
+			"count":   len(tenants),
+		})
+	case "POST":
+		var req struct {
+			Name string `json:"name"`
+			Plan string `json:"plan"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if req.Name == "" {
+			s.writeError(w, http.StatusBadRequest, "name is required")
+			return
+		}
+		id := fmt.Sprintf("tenant-%d", time.Now().UnixNano())
+		tenant, err := s.tenantWorkspace.CreateTenant(id, req.Name, req.Plan)
+		if err != nil {
+			s.writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+		s.writeJSON(w, http.StatusCreated, tenant)
+	default:
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (s *Server) handleTenantByID(w http.ResponseWriter, r *http.Request) {
+	if s.tenantWorkspace == nil {
+		s.writeError(w, http.StatusNotFound, "tenant workspace not configured")
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/tenants/")
+	if id == "" {
+		s.writeError(w, http.StatusBadRequest, "tenant id is required")
+		return
+	}
+	switch r.Method {
+	case "GET":
+		tenant, err := s.tenantWorkspace.GetTenant(id)
+		if err != nil {
+			s.writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		s.writeJSON(w, http.StatusOK, tenant)
+	default:
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
