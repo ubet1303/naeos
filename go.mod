@@ -13,7 +13,7 @@ require (
 	github.com/segmentio/kafka-go v0.4.51
 	github.com/spf13/cobra v1.10.2
 	github.com/tetratelabs/wazero v1.12.0
-	golang.org/x/crypto v0.49.0
+	golang.org/x/crypto v0.54.0
 	golang.org/x/text v0.40.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.54.0
@@ -40,7 +40,7 @@ require (
 	github.com/spf13/pflag v1.0.9 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	modernc.org/libc v1.74.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
