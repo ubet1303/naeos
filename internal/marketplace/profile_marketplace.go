@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/NAEOS-foundation/naeos/internal/securityext"
 )
 
 type ProfileEntry struct {
@@ -135,7 +137,11 @@ func (m *ProfileMarketplace) Download(name, targetDir string) error {
 		return err
 	}
 
-	profileFile := filepath.Join(profileDir, fmt.Sprintf("%s.json", entry.Name))
+	profileName := entry.Name
+	if err := securityext.ValidatePluginName(profileName); err != nil {
+		return fmt.Errorf("invalid profile name %q: %w", profileName, err)
+	}
+	profileFile := filepath.Join(profileDir, fmt.Sprintf("%s.json", profileName))
 	return os.WriteFile(profileFile, data, 0o600)
 }
 

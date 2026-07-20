@@ -2,6 +2,7 @@ package broker
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -214,8 +215,10 @@ func (m *Manager) ConnectAll(configs map[string]*Config) error {
 			continue
 		}
 		if err := broker.Connect(config); err != nil {
+			slog.Error("broker connect failed", "name", name, "error", err)
 			return fmt.Errorf("failed to connect to %s: %w", name, err)
 		}
+		slog.Info("broker connected", "name", name)
 	}
 	return nil
 }
@@ -226,6 +229,7 @@ func (m *Manager) CloseAll() error {
 
 	for name, broker := range m.brokers {
 		if err := broker.Close(); err != nil {
+			slog.Error("broker close failed", "name", name, "error", err)
 			return fmt.Errorf("failed to close %s: %w", name, err)
 		}
 	}

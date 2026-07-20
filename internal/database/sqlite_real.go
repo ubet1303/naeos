@@ -88,6 +88,13 @@ func (s *RealSQLite) Connect(config *Config) error {
 	return nil
 }
 
+func (s *RealSQLite) defaultContext() (context.Context, context.CancelFunc) {
+	if s.config != nil && s.config.Timeout > 0 {
+		return context.WithTimeout(context.Background(), s.config.Timeout)
+	}
+	return context.WithTimeout(context.Background(), 30*time.Second)
+}
+
 func (s *RealSQLite) Close() error {
 	if s.db != nil {
 		return s.db.Close()
@@ -99,11 +106,15 @@ func (s *RealSQLite) Ping() error {
 	if s.db == nil {
 		return fmt.Errorf("not connected")
 	}
-	return s.db.PingContext(context.Background())
+	ctx, cancel := s.defaultContext()
+	defer cancel()
+	return s.db.PingContext(ctx)
 }
 
 func (s *RealSQLite) Exec(query string, args ...any) (Result, error) {
-	return s.ExecContext(context.Background(), query, args...)
+	ctx, cancel := s.defaultContext()
+	defer cancel()
+	return s.ExecContext(ctx, query, args...)
 }
 
 func (s *RealSQLite) ExecContext(ctx context.Context, query string, args ...any) (Result, error) {
@@ -120,7 +131,9 @@ func (s *RealSQLite) ExecContext(ctx context.Context, query string, args ...any)
 }
 
 func (s *RealSQLite) Query(query string, args ...any) ([]Row, error) {
-	return s.QueryContext(context.Background(), query, args...)
+	ctx, cancel := s.defaultContext()
+	defer cancel()
+	return s.QueryContext(ctx, query, args...)
 }
 
 func (s *RealSQLite) QueryContext(ctx context.Context, query string, args ...any) ([]Row, error) {
@@ -158,7 +171,9 @@ func (s *RealSQLite) QueryContext(ctx context.Context, query string, args ...any
 }
 
 func (s *RealSQLite) QueryRow(query string, args ...any) (Row, error) {
-	return s.QueryRowContext(context.Background(), query, args...)
+	ctx, cancel := s.defaultContext()
+	defer cancel()
+	return s.QueryRowContext(ctx, query, args...)
 }
 
 func (s *RealSQLite) QueryRowContext(ctx context.Context, query string, args ...any) (Row, error) {
@@ -200,7 +215,9 @@ func (s *RealSQLite) QueryRowContext(ctx context.Context, query string, args ...
 }
 
 func (s *RealSQLite) Begin() (Transaction, error) {
-	return s.BeginTx(context.Background())
+	ctx, cancel := s.defaultContext()
+	defer cancel()
+	return s.BeginTx(ctx)
 }
 
 func (s *RealSQLite) BeginTx(ctx context.Context) (Transaction, error) {
@@ -215,7 +232,9 @@ func (s *RealSQLite) BeginTx(ctx context.Context) (Transaction, error) {
 }
 
 func (s *RealSQLite) Migrate(migrations []Migration) error {
-	return s.MigrateContext(context.Background(), migrations)
+	ctx, cancel := s.defaultContext()
+	defer cancel()
+	return s.MigrateContext(ctx, migrations)
 }
 
 func (s *RealSQLite) MigrateContext(ctx context.Context, migrations []Migration) error {
@@ -269,7 +288,9 @@ func (s *RealSQLite) MigrateContext(ctx context.Context, migrations []Migration)
 }
 
 func (s *RealSQLite) Rollback(version int) error {
-	return s.RollbackContext(context.Background(), version)
+	ctx, cancel := s.defaultContext()
+	defer cancel()
+	return s.RollbackContext(ctx, version)
 }
 
 func (s *RealSQLite) RollbackContext(ctx context.Context, version int) error {
@@ -322,7 +343,9 @@ func (s *RealSQLite) HealthCheck() error {
 	if s.db == nil {
 		return fmt.Errorf("not connected")
 	}
-	return s.db.PingContext(context.Background())
+	ctx, cancel := s.defaultContext()
+	defer cancel()
+	return s.db.PingContext(ctx)
 }
 
 type RealSQLiteTx struct {
@@ -330,7 +353,9 @@ type RealSQLiteTx struct {
 }
 
 func (t *RealSQLiteTx) Exec(query string, args ...any) (Result, error) {
-	return t.ExecContext(context.Background(), query, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return t.ExecContext(ctx, query, args...)
 }
 
 func (t *RealSQLiteTx) ExecContext(ctx context.Context, query string, args ...any) (Result, error) {
@@ -344,7 +369,9 @@ func (t *RealSQLiteTx) ExecContext(ctx context.Context, query string, args ...an
 }
 
 func (t *RealSQLiteTx) Query(query string, args ...any) ([]Row, error) {
-	return t.QueryContext(context.Background(), query, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return t.QueryContext(ctx, query, args...)
 }
 
 func (t *RealSQLiteTx) QueryContext(ctx context.Context, query string, args ...any) ([]Row, error) {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -176,10 +177,91 @@ Example:
 		},
 	}
 
+	promptCreate := &cobra.Command{
+		Use:   "prompt-create [name]",
+		Short: "Create a custom LLM prompt template",
+		Long: `Create a custom LLM prompt template that can be used with 'naeos ai enrich'.
+
+The command opens an interactive editor or accepts --system and --user flags.
+Example:
+  naeos template prompt-create my-custom-prompt --system "You are an expert" --user "Analyze this: {{.SpecContent}}"`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			system, _ := cmd.Flags().GetString("system")
+			user, _ := cmd.Flags().GetString("user")
+			provider, _ := cmd.Flags().GetString("provider")
+			desc, _ := cmd.Flags().GetString("description")
+
+			if user == "" {
+				return fmt.Errorf("--user prompt content is required")
+			}
+			if system == "" {
+				system = "You are a helpful assistant."
+			}
+			if provider == "" {
+				provider = "openai"
+			}
+
+			promptDir := filepath.Join(templatesDir, "prompts")
+			if err := os.MkdirAll(promptDir, 0o755); err != nil {
+				return err
+			}
+
+			content := fmt.Sprintf(`kind: llm
+name: %s
+version: "1.0.0"
+description: %s
+provider: %s
+system: |
+  %s
+user: |
+  %s
+variables:
+  - name: SpecContent
+    type: string
+    description: Specification content
+    required: true
+`, name, desc, provider, strings.ReplaceAll(system, "\n", "\n  "), strings.ReplaceAll(user, "\n", "\n  "))
+
+			path := filepath.Join(promptDir, name+".yaml")
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				return fmt.Errorf("write prompt: %w", err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Created prompt template: %s\n", path)
+			return nil
+		},
+	}
+	promptCreate.Flags().String("system", "", "system prompt content")
+	promptCreate.Flags().String("user", "", "user prompt content (required)")
+	promptCreate.Flags().String("provider", "openai", "LLM provider (openai, anthropic, ollama)")
+	promptCreate.Flags().String("description", "", "description of the prompt")
+
+	promptRemove := &cobra.Command{
+		Use:   "prompt-remove [name]",
+		Short: "Remove a custom prompt template",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			promptDir := filepath.Join(templatesDir, "prompts")
+			path := filepath.Join(promptDir, name+".yaml")
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				return fmt.Errorf("prompt %q not found at %s", name, path)
+			}
+			if err := os.Remove(path); err != nil {
+				return fmt.Errorf("remove prompt: %w", err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Removed prompt template: %s\n", name)
+			return nil
+		},
+	}
+
 	cmd.AddCommand(templateList)
 	cmd.AddCommand(templateShow)
 	cmd.AddCommand(templateAdd)
 	cmd.AddCommand(templateRemove)
+	cmd.AddCommand(promptCreate)
+	cmd.AddCommand(promptRemove)
 	cmd.PersistentFlags().StringVar(&templatesDir, "templates-dir", filepath.Join(".", ".naeos", "templates"), "templates directory")
 	return cmd
 }

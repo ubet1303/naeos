@@ -8,6 +8,27 @@ import (
 	"time"
 )
 
+// Agent represents a registered remote worker with metadata and heartbeat tracking.
+type Agent struct {
+	ID            string            `json:"id"`
+	Type          string            `json:"type"`
+	Endpoint      string            `json:"endpoint,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	Status        AgentStatus       `json:"status"`
+	LastHeartbeat time.Time         `json:"last_heartbeat"`
+	RegisteredAt  time.Time         `json:"registered_at"`
+	TasksExecuted int64             `json:"tasks_executed"`
+	mu            sync.RWMutex
+}
+
+type AgentStatus string
+
+const (
+	AgentStatusOnline  AgentStatus = "online"
+	AgentStatusOffline AgentStatus = "offline"
+	AgentStatusBusy    AgentStatus = "busy"
+)
+
 type Task struct {
 	ID        string            `json:"id"`
 	Type      string            `json:"type"`
@@ -37,6 +58,7 @@ type Worker interface {
 
 type Coordinator struct {
 	workers  []Worker
+	agents   map[string]*Agent
 	taskCh   chan *Task
 	resultCh chan *TaskResult
 	mu       sync.RWMutex
@@ -62,6 +84,7 @@ func NewCoordinator(workers []Worker, queueSize int) *Coordinator {
 	}
 	return &Coordinator{
 		workers:  workers,
+		agents:   make(map[string]*Agent),
 		taskCh:   make(chan *Task, queueSize),
 		resultCh: make(chan *TaskResult, queueSize),
 		handlers: make(map[string]func(ctx context.Context, task *Task) (*TaskResult, error)),
@@ -86,6 +109,65 @@ func (c *Coordinator) SubmitPriority(task *Task) {
 	}
 	c.metrics.TasksSubmitted.Add(1)
 	c.taskCh <- task
+}
+
+func (c *Coordinator) RegisterAgent(agent *Agent) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if agent.ID == "" {
+		return fmt.Errorf("agent ID must not be empty")
+	}
+	agent.Status = AgentStatusOnline
+	agent.LastHeartbeat = time.Now()
+	if agent.RegisteredAt.IsZero() {
+		agent.RegisteredAt = time.Now()
+	}
+	c.agents[agent.ID] = agent
+	return nil
+}
+
+func (c *Coordinator) UnregisterAgent(id string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if _, ok := c.agents[id]; !ok {
+		return fmt.Errorf("agent not found: %s", id)
+	}
+	c.agents[id].Status = AgentStatusOffline
+	delete(c.agents, id)
+	return nil
+}
+
+func (c *Coordinator) RecordHeartbeat(id string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	agent, ok := c.agents[id]
+	if !ok {
+		return fmt.Errorf("agent not found: %s", id)
+	}
+	agent.mu.Lock()
+	agent.LastHeartbeat = time.Now()
+	agent.Status = AgentStatusOnline
+	agent.mu.Unlock()
+	return nil
+}
+
+func (c *Coordinator) Agent(id string) *Agent {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.agents[id]
+}
+
+func (c *Coordinator) ListAgents() []*Agent {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]*Agent, 0, len(c.agents))
+	for _, a := range c.agents {
+		out = append(out, a)
+	}
+	return out
 }
 
 func (c *Coordinator) RegisterHandler(taskType string, handler func(ctx context.Context, task *Task) (*TaskResult, error)) {
@@ -499,6 +581,41 @@ func NewHealthChecker(workers []Worker, interval time.Duration) *HealthChecker {
 		}
 	}
 	return hc
+}
+
+// Register adds a new worker and its health entry dynamically.
+func (hc *HealthChecker) Register(w Worker) {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+	hc.workers = append(hc.workers, w)
+	hc.health[w.ID()] = &WorkerHealth{
+		WorkerID:      w.ID(),
+		Healthy:       true,
+		LastHeartbeat: time.Now(),
+	}
+}
+
+// Unregister removes a worker by ID.
+func (hc *HealthChecker) Unregister(id string) {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+	for i, w := range hc.workers {
+		if w.ID() == id {
+			hc.workers = append(hc.workers[:i], hc.workers[i+1:]...)
+			delete(hc.health, id)
+			return
+		}
+	}
+}
+
+// RecordHeartbeat updates the last heartbeat time for a worker.
+func (hc *HealthChecker) RecordHeartbeat(id string) {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+	if h, ok := hc.health[id]; ok {
+		h.LastHeartbeat = time.Now()
+		h.Healthy = true
+	}
 }
 
 func (hc *HealthChecker) Start(ctx context.Context) {

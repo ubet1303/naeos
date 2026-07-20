@@ -173,6 +173,29 @@ func TestOpenCodeAdapterNil(t *testing.T) {
 	}
 }
 
+func TestWindsurfAdapter(t *testing.T) {
+	a := NewWindsurfAdapter(nil)
+	if a.Target() != compiler.TargetWindsurf {
+		t.Errorf("expected windsurf target, got %s", a.Target())
+	}
+
+	out, err := a.Compile(testNEIR())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(out.Files) != 2 {
+		t.Errorf("expected 2 files, got %d", len(out.Files))
+	}
+}
+
+func TestWindsurfAdapterNil(t *testing.T) {
+	a := NewWindsurfAdapter(nil)
+	_, err := a.Compile(nil)
+	if err == nil {
+		t.Fatal("expected error for nil NEIR")
+	}
+}
+
 func TestAllAdaptersContent(t *testing.T) {
 	adapters := []compiler.Adapter{
 		NewCopilotAdapter(nil),
@@ -181,6 +204,7 @@ func TestAllAdaptersContent(t *testing.T) {
 		NewGeminiAdapter(nil),
 		NewCodexAdapter(nil),
 		NewOpenCodeAdapter(nil),
+		NewWindsurfAdapter(nil),
 	}
 
 	neir := testNEIR()

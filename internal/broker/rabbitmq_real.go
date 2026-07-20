@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -39,15 +40,18 @@ func (r *RealRabbitMQ) Connect(config *Config) error {
 
 	conn, err := amqp.Dial(url)
 	if err != nil {
+		slog.Error("rabbitmq connect failed", "host", config.Host, "port", config.Port, "error", err)
 		return fmt.Errorf("connect to rabbitmq: %w", err)
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
 		conn.Close()
+		slog.Error("rabbitmq channel open failed", "error", err)
 		return fmt.Errorf("open channel: %w", err)
 	}
 
+	slog.Info("rabbitmq connected", "host", config.Host, "port", config.Port)
 	r.conn = conn
 	r.channel = ch
 	return nil

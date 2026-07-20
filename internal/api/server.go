@@ -17,6 +17,7 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/ai"
 	"github.com/NAEOS-foundation/naeos/internal/artifacts"
 	"github.com/NAEOS-foundation/naeos/internal/audit"
+	"github.com/NAEOS-foundation/naeos/internal/auth"
 	"github.com/NAEOS-foundation/naeos/internal/cloud"
 	"github.com/NAEOS-foundation/naeos/internal/compiler"
 	contextbundle "github.com/NAEOS-foundation/naeos/internal/context/bundle"
@@ -26,6 +27,7 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/monitoring"
 	"github.com/NAEOS-foundation/naeos/internal/pluginhost"
 	"github.com/NAEOS-foundation/naeos/internal/profiles"
+	"github.com/NAEOS-foundation/naeos/internal/multitenant"
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 	"github.com/NAEOS-foundation/naeos/internal/version"
 	naeosws "github.com/NAEOS-foundation/naeos/internal/websocket"
@@ -41,9 +43,12 @@ type Server struct {
 	CORS            *CORSConfig
 	MaxBodySize     int64
 	Limiter         *RateLimiter
+	TenantLimiter   *RateLimiter
 	APIKeys         map[string]*RateLimiter
 	apiKeysMu       sync.RWMutex
 	jwt             *JWTValidator
+	authManager     *auth.Manager
+	routePerms      map[string]auth.RoutePermission
 	parser          parser.Parser
 	compiler        *compiler.Compiler
 	bundle          *contextbundle.Generator
@@ -63,6 +68,7 @@ type Server struct {
 	db              database.Database
 	profiles        *profiles.Registry
 	pipelineObserver pipeline.PipelineObserver
+	tenantWorkspace *multitenant.Workspace
 }
 
 type pipelineRun struct {
@@ -135,10 +141,12 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 
 	metrics := monitoring.NewMetrics()
 
+	routePerms := defaultRoutePermissions()
 	s := &Server{
-		Addr:   addr,
-		Router: http.NewServeMux(),
-		Auth:   auth,
+		Addr:        addr,
+		Router:      http.NewServeMux(),
+		Auth:        auth,
+		routePerms:  routePerms,
 		CORS: &CORSConfig{
 			AllowedOrigins: []string{
 				"http://localhost:3000",
@@ -149,8 +157,9 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 			AllowedHeaders: []string{"Content-Type", "Authorization"},
 		},
 		MaxBodySize:  10 << 20,
-		Limiter:      NewRateLimiter(100, time.Minute),
-		APIKeys:      make(map[string]*RateLimiter),
+		Limiter:       NewRateLimiter(100, time.Minute),
+		TenantLimiter: NewRateLimiter(1000, time.Minute),
+		APIKeys:       make(map[string]*RateLimiter),
 		parser:       parser.NewParser(),
 		compiler:     compiler.New(),
 		store:        store,
@@ -235,6 +244,34 @@ func (s *Server) setupRoutes() {
 	s.Router.HandleFunc("/.well-known/openid-configuration", s.handleOIDCDiscovery)
 }
 
+func defaultRoutePermissions() map[string]auth.RoutePermission {
+	return map[string]auth.RoutePermission{
+		"/api/v1/specs":             {Resource: auth.ResourceSpec, Action: auth.ActionRead},
+		"/api/v1/specs/validate":    {Resource: auth.ResourceSpec, Action: auth.ActionWrite},
+		"/api/v1/specs/compile":     {Resource: auth.ResourceSpec, Action: auth.ActionWrite},
+		"/api/v1/specs/visualize":   {Resource: auth.ResourceSpec, Action: auth.ActionRead},
+		"/api/v1/pipeline/run":      {Resource: auth.ResourcePipeline, Action: auth.ActionWrite},
+		"/api/v1/pipeline/status":   {Resource: auth.ResourcePipeline, Action: auth.ActionRead},
+		"/api/v1/artifacts":         {Resource: auth.ResourceArtifact, Action: auth.ActionRead},
+		"/api/v1/context/generate":  {Resource: auth.ResourceSpec, Action: auth.ActionWrite},
+		"/api/v1/profiles":          {Resource: auth.ResourceProfile, Action: auth.ActionRead},
+		"/api/v1/profiles/publish":  {Resource: auth.ResourceProfile, Action: auth.ActionWrite},
+		"/api/v1/profiles/sync":     {Resource: auth.ResourceProfile, Action: auth.ActionWrite},
+		"/api/v1/profiles/subscribe": {Resource: auth.ResourceProfile, Action: auth.ActionWrite},
+		"/api/v1/cloud/plan":        {Resource: auth.ResourceCloud, Action: auth.ActionRead},
+		"/api/v1/cloud/deploy":      {Resource: auth.ResourceCloud, Action: auth.ActionWrite},
+		"/api/v1/cloud/destroy":     {Resource: auth.ResourceCloud, Action: auth.ActionDelete},
+		"/api/v1/cloud/status":      {Resource: auth.ResourceCloud, Action: auth.ActionRead},
+		"/api/v1/plugins":           {Resource: auth.ResourcePlugin, Action: auth.ActionRead},
+		"/api/v1/plugins/execute":   {Resource: auth.ResourcePlugin, Action: auth.ActionWrite},
+		"/api/v1/ai/enrich/stream":  {Resource: auth.ResourceAI, Action: auth.ActionWrite},
+		"/api/v1/ai/explain/stream": {Resource: auth.ResourceAI, Action: auth.ActionRead},
+		"/api/v1/config/schema":     {Resource: auth.ResourceConfig, Action: auth.ActionRead},
+		"/api/v1/version":           {Resource: auth.ResourceAdmin, Action: auth.ActionRead},
+		"/api/v1/health":            {Resource: auth.ResourceAdmin, Action: auth.ActionRead},
+	}
+}
+
 // SetWebSocketServer attaches a WebSocket server to the API server.
 func (s *Server) SetWebSocketServer(ws *naeosws.Server) {
 	s.wsServer = ws
@@ -243,6 +280,24 @@ func (s *Server) SetWebSocketServer(ws *naeosws.Server) {
 // SetDatabase attaches a database to the API server for persistence.
 func (s *Server) SetDatabase(db database.Database) {
 	s.db = db
+}
+
+// SetAuthManager attaches an auth manager for RBAC enforcement.
+func (s *Server) SetAuthManager(m *auth.Manager) {
+	s.authManager = m
+}
+
+// SetWorkspace attaches a workspace manager for multi-tenant isolation.
+func (s *Server) SetWorkspace(w *multitenant.Workspace) {
+	s.tenantWorkspace = w
+}
+
+// SetRoutePermission sets the RBAC resource and action required for a route path.
+func (s *Server) SetRoutePermission(path, resource, action string) {
+	if s.routePerms == nil {
+		s.routePerms = make(map[string]auth.RoutePermission)
+	}
+	s.routePerms[path] = auth.RoutePermission{Resource: resource, Action: action}
 }
 
 // SetPipelineObserver attaches a pipeline observer, chaining with metrics recording.
@@ -348,6 +403,7 @@ func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFun
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
 		// Auth
+		var userID string
 		if s.Auth.Enabled && r.URL.Path != "/api/v1/health" {
 			token := r.Header.Get("Authorization")
 			if token == "" {
@@ -356,16 +412,120 @@ func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFun
 			}
 			token = strings.TrimPrefix(token, "Bearer ")
 			if s.jwt != nil {
-				_, err := s.jwt.Validate(token)
+				claims, err := s.jwt.Validate(token)
 				if err != nil {
 					s.writeError(w, http.StatusUnauthorized, "invalid token: "+err.Error())
 					return
 				}
+				userID = claims.Sub
+			}
+
+			// RBAC check
+			if s.authManager != nil {
+				perm, ok := s.routePerms[r.URL.Path]
+				if ok {
+					var user *auth.User
+					if userID != "" {
+						var exists bool
+						user, exists = s.authManager.GetUser(userID)
+						if !exists {
+							s.writeError(w, http.StatusForbidden, "user not found")
+							return
+						}
+					}
+					if user != nil && !s.authManager.RBAC().HasPermission(user, perm.Resource, perm.Action) {
+						s.writeError(w, http.StatusForbidden, "insufficient permissions")
+						return
+					}
+				}
+			}
+		}
+
+		if userID != "" {
+			r = r.WithContext(context.WithValue(r.Context(), UserContextKey, userID))
+
+			// Resolve tenant from user metadata (X-Tenant-ID header or user attribute)
+			if s.tenantWorkspace != nil {
+				tenantID := r.Header.Get("X-Tenant-ID")
+				if tenantID == "" {
+					if user, exists := s.authManager.GetUser(userID); exists && len(user.Roles) > 0 {
+						tenantID = user.Roles[0]
+					}
+				}
+				if tenantID != "" {
+					if _, err := s.tenantWorkspace.GetTenant(tenantID); err == nil {
+						r = r.WithContext(context.WithValue(r.Context(), TenantContextKey, tenantID))
+					}
+				}
+			}
+		}
+
+		// Tenant rate limit check
+		if s.TenantLimiter != nil {
+			tenantID := ""
+			if v, ok := r.Context().Value(TenantContextKey).(string); ok {
+				tenantID = v
+			}
+			if tenantID != "" && !s.TenantLimiter.Allow(tenantID) {
+				s.writeError(w, http.StatusTooManyRequests, "tenant rate limit exceeded")
+				return
 			}
 		}
 
 		slog.Info("request", "method", r.Method, "path", r.URL.Path, "request_id", requestID) //nolint:gosec
-		handler(w, r)
+
+		// Capture status for audit logging
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		handler(rec, r)
+
+		// Audit trail
+		if s.auditor != nil {
+			action := mapMethodToAction(r.Method)
+			s.auditor.Log(audit.AuditEvent{
+				ID:        GenerateRequestID(),
+				Timestamp: time.Now(),
+				UserID:    userID,
+				Action:    action,
+				Resource:  r.URL.Path,
+				Status:    auditStatusFromHTTP(rec.status),
+				IP:        r.RemoteAddr,
+				UserAgent: r.UserAgent(),
+				Metadata: map[string]string{
+					"method":     r.Method,
+					"request_id": requestID,
+				},
+			})
+		}
+	}
+}
+
+func mapMethodToAction(method string) string {
+	switch method {
+	case http.MethodGet:
+		return "read"
+	case http.MethodPost:
+		return "create"
+	case http.MethodPut:
+		return "update"
+	case http.MethodPatch:
+		return "update"
+	case http.MethodDelete:
+		return "delete"
+	default:
+		return "other"
+	}
+}
+
+func auditStatusFromHTTP(status int) string {
+	switch {
+	case status >= 200 && status < 300:
+		return "success"
+	case status >= 400 && status < 500:
+		return "denied"
+	case status >= 500:
+		return "error"
+	default:
+		return "unknown"
 	}
 }
 

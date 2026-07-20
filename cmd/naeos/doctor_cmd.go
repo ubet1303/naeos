@@ -17,6 +17,7 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/broker"
 	"github.com/NAEOS-foundation/naeos/internal/database"
 	"github.com/NAEOS-foundation/naeos/internal/lint"
+	"github.com/NAEOS-foundation/naeos/internal/observability"
 	"github.com/NAEOS-foundation/naeos/internal/version"
 	"github.com/NAEOS-foundation/naeos/pkg/pipeline"
 )
@@ -121,7 +122,9 @@ Checks include:
 func doctorCommandContext(name string, arg ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return exec.CommandContext(ctx, name, arg...).Output()
+	cmd := exec.CommandContext(ctx, name, arg...)
+	observability.InjectTraceToCmd(ctx, cmd)
+	return cmd.Output()
 }
 
 func checkGo() checkResult {

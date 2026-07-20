@@ -69,6 +69,13 @@ func (p *RealPostgreSQL) Connect(config *Config) error {
 	return nil
 }
 
+func (p *RealPostgreSQL) defaultContext() (context.Context, context.CancelFunc) {
+	if p.config != nil && p.config.Timeout > 0 {
+		return context.WithTimeout(context.Background(), p.config.Timeout)
+	}
+	return context.WithTimeout(context.Background(), 30*time.Second)
+}
+
 func (p *RealPostgreSQL) Close() error {
 	if p.db != nil {
 		return p.db.Close()
@@ -80,11 +87,15 @@ func (p *RealPostgreSQL) Ping() error {
 	if p.db == nil {
 		return fmt.Errorf("not connected")
 	}
-	return p.db.PingContext(context.Background())
+	ctx, cancel := p.defaultContext()
+	defer cancel()
+	return p.db.PingContext(ctx)
 }
 
 func (p *RealPostgreSQL) Exec(query string, args ...any) (Result, error) {
-	return p.ExecContext(context.Background(), query, args...)
+	ctx, cancel := p.defaultContext()
+	defer cancel()
+	return p.ExecContext(ctx, query, args...)
 }
 
 func (p *RealPostgreSQL) ExecContext(ctx context.Context, query string, args ...any) (Result, error) {
@@ -101,7 +112,9 @@ func (p *RealPostgreSQL) ExecContext(ctx context.Context, query string, args ...
 }
 
 func (p *RealPostgreSQL) Query(query string, args ...any) ([]Row, error) {
-	return p.QueryContext(context.Background(), query, args...)
+	ctx, cancel := p.defaultContext()
+	defer cancel()
+	return p.QueryContext(ctx, query, args...)
 }
 
 func (p *RealPostgreSQL) QueryContext(ctx context.Context, query string, args ...any) ([]Row, error) {
@@ -139,7 +152,9 @@ func (p *RealPostgreSQL) QueryContext(ctx context.Context, query string, args ..
 }
 
 func (p *RealPostgreSQL) QueryRow(query string, args ...any) (Row, error) {
-	return p.QueryRowContext(context.Background(), query, args...)
+	ctx, cancel := p.defaultContext()
+	defer cancel()
+	return p.QueryRowContext(ctx, query, args...)
 }
 
 func (p *RealPostgreSQL) QueryRowContext(ctx context.Context, query string, args ...any) (Row, error) {
@@ -181,7 +196,9 @@ func (p *RealPostgreSQL) QueryRowContext(ctx context.Context, query string, args
 }
 
 func (p *RealPostgreSQL) Begin() (Transaction, error) {
-	return p.BeginTx(context.Background())
+	ctx, cancel := p.defaultContext()
+	defer cancel()
+	return p.BeginTx(ctx)
 }
 
 func (p *RealPostgreSQL) BeginTx(ctx context.Context) (Transaction, error) {
@@ -196,7 +213,9 @@ func (p *RealPostgreSQL) BeginTx(ctx context.Context) (Transaction, error) {
 }
 
 func (p *RealPostgreSQL) Migrate(migrations []Migration) error {
-	return p.MigrateContext(context.Background(), migrations)
+	ctx, cancel := p.defaultContext()
+	defer cancel()
+	return p.MigrateContext(ctx, migrations)
 }
 
 func (p *RealPostgreSQL) MigrateContext(ctx context.Context, migrations []Migration) error {
@@ -250,7 +269,9 @@ func (p *RealPostgreSQL) MigrateContext(ctx context.Context, migrations []Migrat
 }
 
 func (p *RealPostgreSQL) Rollback(version int) error {
-	return p.RollbackContext(context.Background(), version)
+	ctx, cancel := p.defaultContext()
+	defer cancel()
+	return p.RollbackContext(ctx, version)
 }
 
 func (p *RealPostgreSQL) RollbackContext(ctx context.Context, version int) error {
@@ -303,7 +324,9 @@ func (p *RealPostgreSQL) HealthCheck() error {
 	if p.db == nil {
 		return fmt.Errorf("not connected")
 	}
-	return p.db.PingContext(context.Background())
+	ctx, cancel := p.defaultContext()
+	defer cancel()
+	return p.db.PingContext(ctx)
 }
 
 type RealPostgreSQLTx struct {
@@ -311,7 +334,9 @@ type RealPostgreSQLTx struct {
 }
 
 func (t *RealPostgreSQLTx) Exec(query string, args ...any) (Result, error) {
-	return t.ExecContext(context.Background(), query, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return t.ExecContext(ctx, query, args...)
 }
 
 func (t *RealPostgreSQLTx) ExecContext(ctx context.Context, query string, args ...any) (Result, error) {
@@ -325,7 +350,9 @@ func (t *RealPostgreSQLTx) ExecContext(ctx context.Context, query string, args .
 }
 
 func (t *RealPostgreSQLTx) Query(query string, args ...any) ([]Row, error) {
-	return t.QueryContext(context.Background(), query, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return t.QueryContext(ctx, query, args...)
 }
 
 func (t *RealPostgreSQLTx) QueryContext(ctx context.Context, query string, args ...any) ([]Row, error) {

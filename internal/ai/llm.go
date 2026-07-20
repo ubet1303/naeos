@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -199,13 +200,80 @@ Specification:
 Architecture explanation:`, arch, specContent)
 }
 
+// modelContextWindows maps known model names to their context window sizes (in tokens).
+var modelContextWindows = map[string]int{
+	"gpt-4o":                128000,
+	"gpt-4o-mini":           128000,
+	"gpt-4-turbo":           128000,
+	"gpt-4":                 8192,
+	"gpt-3.5-turbo":         16385,
+	"claude-3-opus-20240229":   200000,
+	"claude-3-sonnet-20240229": 200000,
+	"claude-3-haiku-20240307":  200000,
+	"claude-3-5-sonnet-20241022": 200000,
+	"claude-3-5-haiku-20241022": 200000,
+	"llama3.2":              8192,
+	"llama3.1":              8192,
+	"llama3":                8192,
+	"mistral":               8192,
+	"codellama":             16384,
+	"mixtral":               32768,
+}
+
+// estimateTokens returns a rough estimate of the number of tokens in a string.
+// Uses the common heuristic of ~4 characters per token for English text.
+func estimateTokens(s string) int {
+	return len(s) / 4
+}
+
+// truncatePrompt truncates the prompt to fit within the model's context window,
+// reserving config.MaxTokens output tokens.
+func (s *LLMService) truncatePrompt(prompt string) string {
+	window, ok := modelContextWindows[s.config.Model]
+	if !ok {
+		window = 8192
+	}
+
+	available := window - s.config.MaxTokens
+	if available < 256 {
+		available = 256
+	}
+
+	estimated := estimateTokens(prompt)
+	if estimated <= available {
+		return prompt
+	}
+
+	maxChars := available * 4
+	truncated := prompt[:maxChars]
+
+	slog.Warn("prompt truncated",
+		"model", s.config.Model,
+		"estimated_tokens", estimated,
+		"context_window", window,
+		"available_tokens", available,
+	)
+
+	return truncated
+}
+
 func (s *LLMService) callLLM(prompt string) (string, error) {
+	prompt = s.truncatePrompt(prompt)
 	switch s.config.Provider {
 	case ProviderOpenAI, ProviderOllama:
-		return s.callOpenAI(prompt)
+		response, err := s.callOpenAI(prompt)
+		if err != nil {
+			slog.Error("openai call failed", "error", err)
+		}
+		return response, err
 	case ProviderAnthropic:
-		return s.callAnthropic(prompt)
+		response, err := s.callAnthropic(prompt)
+		if err != nil {
+			slog.Error("anthropic call failed", "error", err)
+		}
+		return response, err
 	default:
+		slog.Error("unsupported LLM provider", "provider", s.config.Provider)
 		return "", fmt.Errorf("unsupported LLM provider: %s", s.config.Provider)
 	}
 }
@@ -244,28 +312,34 @@ func (s *LLMService) callOpenAI(prompt string) (string, error) {
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
+		slog.Error("openai request failed", "error", err)
 		return "", fmt.Errorf("openai request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		slog.Error("openai read response failed", "error", err)
 		return "", err
 	}
 
 	var result openAIResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
+		slog.Error("openai parse response failed", "error", err)
 		return "", err
 	}
 
 	if result.Error != nil {
+		slog.Error("openai api error", "message", result.Error.Message)
 		return "", fmt.Errorf("openai error: %s", result.Error.Message)
 	}
 
 	if len(result.Choices) == 0 {
+		slog.Error("openai no choices returned")
 		return "", fmt.Errorf("openai: no choices returned")
 	}
 
+	slog.Info("openai call succeeded", "model", s.config.Model)
 	return result.Choices[0].Message.Content, nil
 }
 

@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -43,9 +44,11 @@ func (r *RealRedis) Connect(config *Config) error {
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		rdb.Close()
+		slog.Error("redis connect failed", "host", config.Host, "port", config.Port, "error", err)
 		return fmt.Errorf("connect to redis: %w", err)
 	}
 
+	slog.Info("redis connected", "host", config.Host, "port", config.Port)
 	r.client = rdb
 	_, r.cancel = context.WithCancel(context.Background())
 	return nil

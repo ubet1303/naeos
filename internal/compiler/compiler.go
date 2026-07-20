@@ -20,6 +20,7 @@ const (
 	TargetGemini   Target = "gemini"
 	TargetCodex    Target = "codex"
 	TargetOpenCode Target = "opencode"
+	TargetWindsurf Target = "windsurf"
 )
 
 type CompiledOutput struct {

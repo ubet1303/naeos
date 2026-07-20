@@ -155,6 +155,9 @@ func (s *SnapshotStore) List() ([]Snapshot, error) {
 }
 
 func (s *SnapshotStore) Restore(snapshotID, targetDir string) error {
+	if err := validateSnapshotID(snapshotID); err != nil {
+		return err
+	}
 	snapDir := filepath.Join(s.snapshotDir(), snapshotID)
 	info, err := os.Stat(snapDir)
 	if err != nil {
@@ -243,6 +246,9 @@ func (s *SnapshotStore) verifyIntegrity(dir string, manifest *Manifest) error {
 }
 
 func (s *SnapshotStore) Delete(snapshotID string) error {
+	if err := validateSnapshotID(snapshotID); err != nil {
+		return err
+	}
 	snapDir := filepath.Join(s.snapshotDir(), snapshotID)
 	if _, err := os.Stat(snapDir); os.IsNotExist(err) {
 		return fmt.Errorf("snapshot %s not found", snapshotID)
@@ -268,6 +274,9 @@ func (s *SnapshotStore) Latest() (*Snapshot, error) {
 }
 
 func (s *SnapshotStore) Export(snapshotID, destPath string) error {
+	if err := validateSnapshotID(snapshotID); err != nil {
+		return err
+	}
 	snapDir := filepath.Join(s.snapshotDir(), snapshotID)
 	if _, err := os.Stat(snapDir); os.IsNotExist(err) {
 		return fmt.Errorf("snapshot %s not found", snapshotID)
@@ -382,4 +391,17 @@ func (s *SnapshotStore) Import(srcPath string) (*Snapshot, error) {
 	}
 
 	return snap, nil
+}
+
+func validateSnapshotID(id string) error {
+	if id == "" {
+		return fmt.Errorf("snapshot ID must not be empty")
+	}
+	if strings.Contains(id, "/") || strings.Contains(id, "\\") {
+		return fmt.Errorf("snapshot ID must not contain path separators")
+	}
+	if strings.Contains(id, "..") {
+		return fmt.Errorf("snapshot ID must not contain relative path components")
+	}
+	return nil
 }

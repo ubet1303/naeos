@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ func (k *RealKafka) Connect(config *Config) error {
 	k.config = config
 	broker := fmt.Sprintf("%s:%d", config.Host, config.Port)
 
+	slog.Info("kafka connected", "host", config.Host, "port", config.Port)
 	k.writer = &kafka.Writer{
 		Addr:         kafka.TCP(broker),
 		Balancer:     &kafka.LeastBytes{},

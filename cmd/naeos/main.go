@@ -107,5 +107,6 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newDeployCommand())
 	root.AddCommand(newTUICommand())
 	root.AddCommand(newArtifactsCommand())
+	root.AddCommand(newBuildCommand())
 	return root
 }

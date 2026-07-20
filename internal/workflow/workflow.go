@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -564,16 +565,20 @@ func (m *Manager) List() []string {
 func (m *Manager) Execute(name string) error {
 	workflow, ok := m.Get(name)
 	if !ok {
+		slog.Error("workflow not found", "name", name)
 		return fmt.Errorf("workflow not found: %s", name)
 	}
+	slog.Info("workflow executing", "name", name)
 	return workflow.Execute()
 }
 
 func (m *Manager) ExecuteWithContext(ctx context.Context, name string) error {
 	workflow, ok := m.Get(name)
 	if !ok {
+		slog.Error("workflow not found", "name", name)
 		return fmt.Errorf("workflow not found: %s", name)
 	}
+	slog.Info("workflow executing with context", "name", name)
 	return workflow.ExecuteWithContext(ctx)
 }
 

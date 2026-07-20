@@ -2,6 +2,7 @@ package broker
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -39,9 +40,11 @@ func (n *RealNATS) Connect(config *Config) error {
 
 	conn, err := nats.Connect(url, opts...)
 	if err != nil {
+		slog.Error("nats connect failed", "host", config.Host, "port", config.Port, "error", err)
 		return fmt.Errorf("connect to NATS: %w", err)
 	}
 
+	slog.Info("nats connected", "host", config.Host, "port", config.Port)
 	n.conn = conn
 	return nil
 }

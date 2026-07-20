@@ -503,6 +503,79 @@ variables:
       - "Document public APIs"
 `,
 
+	"windsurf": `name: windsurf
+kind: compiler
+version: "1.0.0"
+target: windsurf
+files:
+  - path: ".windsurfrules"
+    kind: rules
+    template: |
+      # Windsurf Rules
+
+      {{if .Project.Name}}project_name: {{.Project.Name}}{{end}}
+      {{if .Architecture.Pattern}}architecture: {{.Architecture.Pattern}}{{end}}
+
+      ## Instructions
+
+      You are working on a project with the following structure:
+
+      {{if .Modules}}
+      ### Modules
+
+      {{range .Modules}}- {{code .Name}} at {{code .Path}}
+      {{if .Description}}  > {{.Description}}{{end}}
+      {{end}}{{end}}
+      {{if .Services}}
+      ### Services
+
+      {{range .Services}}- **{{.Name}}** ({{.Kind}}, port {{.Port}})
+      {{range .Endpoints}}  - {{.Method}} {{.Path}} -> {{.Action}}
+      {{end}}{{end}}{{end}}
+      {{if .Components}}
+      ### Components
+
+      {{range .Components}}- {{code .Name}} [{{.Kind}}] module: {{code .Module}}
+      {{end}}{{end}}
+
+      ## Style Rules
+
+      - Use early returns
+      - Prefer const/readonly where possible
+      - Write self-documenting code with clear names
+      - Handle all error paths
+      - Keep functions under 50 lines
+
+  - path: ".windsurf/context.md"
+    kind: context
+    template: |
+      # Windsurf Context
+
+      Additional project context for Windsurf AI.
+
+      {{if .Project.Name}}Project: {{.Project.Name}} {{.Project.Version}}{{end}}
+
+      {{if .Modules}}
+      ## Module Dependency Map
+
+      {{range .Modules}}{{if .Dependencies}}{{.Name}} depends on: {{join .Dependencies ", "}}{{end}}
+      {{end}}{{end}}
+      {{if .APIs}}
+      ## API Endpoints
+
+      {{range .APIs}}### {{.Name}} v{{.Version}} ({{.Protocol}})
+      {{range .Endpoints}}- {{.Method}} {{.Path}}: {{.Summary}}
+      {{end}}{{end}}{{end}}
+variables:
+  - name: StyleRules
+    type: "[]string"
+    default:
+      - "Use early returns"
+      - "Prefer const/readonly where possible"
+      - "Write self-documenting code with clear names"
+      - "Handle all error paths"
+      - "Keep functions under 50 lines"
+`,
 	"opencode": `name: opencode
 kind: compiler
 version: "1.0.0"
