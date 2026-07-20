@@ -1,0 +1,61 @@
+---
+const stages = [
+  { name: "Parse", x: 0 },
+  { name: "Normalize", x: 1 },
+  { name: "Resolve", x: 2 },
+  { name: "NEIR", x: 3 },
+  { name: "Validate", x: 4 },
+  { name: "Schedule", x: 5 },
+  { name: "Generate", x: 6 },
+  { name: "Render", x: 7 },
+  { name: "Review", x: 8 },
+];
+---
+
+<div class="glass p-6 md:p-8 overflow-hidden">
+  <div class="flex items-center justify-between gap-0 w-full pipeline-flow">
+    {stages.map((s, i) => (
+      <>
+        <div class="flex flex-col items-center group pipeline-stage min-w-0">
+          <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-[#1a1a1a] border-2 border-[#333] flex items-center justify-center text-xs md:text-sm font-bold text-[#00ff88] group-hover:bg-[#00ff88] group-hover:text-[#0a0a0a] group-hover:border-[#00ff88] transition-all duration-300 z-10 stage-dot">
+            {i + 1}
+          </div>
+          <span class="text-[10px] md:text-xs text-[#888] mt-2 font-medium whitespace-nowrap group-hover:text-[#00ff88] transition-colors">
+            {s.name}
+          </span>
+        </div>
+        {i < stages.length - 1 && (
+          <div class="h-0.5 flex-1 bg-gradient-to-r from-[#333] to-[#444] relative mx-1 md:mx-2 stage-arrow">
+            <div class="absolute inset-0 bg-gradient-to-r from-[#00ff88] to-[#66b3ff] scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+          </div>
+        )}
+      </>
+    ))}
+  </div>
+</div>
+
+<style>
+  .pipeline-flow {
+    animation: pipeline-glow 3s ease-in-out infinite;
+  }
+  @keyframes pipeline-glow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.85; }
+  }
+  .stage-dot {
+    animation: dot-pulse 2s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * 0.2s);
+  }
+  .pipeline-stage:nth-child(odd) .stage-dot {
+    --i: 1;
+  }
+  .pipeline-stage:nth-child(3n) .stage-dot {
+    --i: 2;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pipeline-flow, .stage-dot, .stage-arrow {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>

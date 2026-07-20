@@ -1,0 +1,153 @@
+---
+import PageLayout from "../../../layouts/PageLayout.astro";
+
+const lang = "id";
+
+const examples = [
+  {
+    title: "Platform E-Commerce",
+    desc: "Sistem e-commerce lengkap dengan arsitektur hexagonal, 5 modul, dan 2 layanan.",
+    spec: `project: e-commerce-platform
+
+modules:
+  - name: auth
+    path: ./internal/auth
+    description: Modul autentikasi
+    dependencies: [core, user]
+
+  - name: core
+    path: ./internal/core
+    description: Logika bisnis inti
+
+  - name: user
+    path: ./internal/user
+    description: Manajemen pengguna
+    dependencies: [core]
+
+  - name: order
+    path: ./internal/order
+    description: Pemrosesan pesanan
+    dependencies: [core, user, payment]
+
+  - name: payment
+    path: ./internal/payment
+    description: Pemrosesan pembayaran
+    dependencies: [core]
+
+services:
+  - name: api-gateway
+    kind: http
+    port: 8080
+    endpoints:
+      - method: GET  path: /health   action: healthCheck
+      - method: POST path: /auth/login  action: login
+      - method: POST path: /orders   action: createOrder
+      - method: POST path: /payments action: processPayment
+
+architecture:
+  pattern: hexagonal
+  principles:
+    - Logika bisnis inti independen dari framework
+    - Port mendefinisikan antarmuka untuk komunikasi eksternal
+
+deployment:
+  strategy: blue-green
+  environments: [development, staging, production]
+
+generation:
+  languages: [go, typescript]
+  output_dir: ./out`,
+  },
+  {
+    title: "Pemrosesan Pesanan Berbasis Event",
+    desc: "Sistem microservice asinkron yang berkomunikasi melalui broker event (NATS/RabbitMQ).",
+    spec: `project: order-processing-system
+
+modules:
+  - name: order
+    path: ./internal/order
+    description: Logika domain untuk pesanan
+    dependencies: [core]
+  - name: inventory
+    path: ./internal/inventory
+    description: Memperbarui inventaris
+    dependencies: [core]
+  - name: payment
+    path: ./internal/payment
+    description: Memproses pembayaran
+    dependencies: [core]
+  - name: core
+    path: ./internal/core
+    description: Kernel dan kontrak bersama
+
+services:
+  - name: api-gateway
+    kind: http
+    port: 8080
+    endpoints:
+      - method: POST path: /orders action: createOrder
+  - name: order-worker
+    kind: worker
+    port: 8081
+  - name: inventory-worker
+    kind: worker
+    port: 8082
+
+architecture:
+  pattern: event-driven
+
+generation:
+  languages: [go, typescript, python, rust]
+  output_dir: ./out`,
+  },
+  {
+    title: "Proyek Minimal",
+    desc: "Spesifikasi NAEOS paling sederhana — semua field kecuali project bersifat opsional.",
+    spec: `# Spesifikasi NAEOS Minimal
+# Semua field kecuali project bersifat opsional
+
+project: proyek-saya`,
+  },
+];
+---
+
+<PageLayout
+  lang={lang}
+  title="Contoh"
+  description="Contoh spesifikasi NAEOS nyata — dari minimal hingga sistem produksi lengkap."
+>
+  <div slot="header">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      <span class="gradient-text">Contoh</span>
+    </h1>
+    <p class="text-lg text-[#888] mb-12 max-w-2xl">
+      Contoh spesifikasi nyata yang mendemonstrasikan NAEOS dalam aksi. Dari minimal hingga sistem produksi lengkap.
+    </p>
+  </div>
+
+  <div class="container-main max-w-5xl mx-auto px-6">
+    {examples.map((ex, i) => (
+      <div class="mb-12">
+        <div class="flex items-baseline gap-3 mb-4">
+          <span class="text-sm font-bold text-[#00ff88] font-mono">0{i + 1}</span>
+          <h2 class="text-2xl font-bold">{ex.title}</h2>
+        </div>
+        <p class="text-sm text-[#888] mb-4">{ex.desc}</p>
+        <div class="bg-[#0a0a0a] rounded-xl border border-[#333] overflow-hidden">
+          <div class="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#333] bg-[#111]">
+            <div class="w-3 h-3 rounded-full bg-[#ff5f56]" />
+            <div class="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+            <div class="w-3 h-3 rounded-full bg-[#27c93f]" />
+            <span class="text-xs text-[#666] font-mono ml-2">spec.yaml</span>
+          </div>
+          <pre class="text-sm font-mono text-[#e0e0e0] p-5 overflow-x-auto leading-relaxed">{ex.spec}</pre>
+        </div>
+      </div>
+    ))}
+
+    <div class="glass p-8 text-center mb-12">
+      <h3 class="text-lg font-semibold mb-2">Coba sendiri</h3>
+      <p class="text-sm text-[#888] mb-6">Buat spesifikasi pertama Anda dalam hitungan menit dan jalankan pipeline.</p>
+    </div>
+  </div>
+</PageLayout>

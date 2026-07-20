@@ -1,0 +1,45 @@
+---
+import type { Lang } from "../i18n/utils";
+import { useTranslations } from "../i18n/utils";
+
+export interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const languages = [
+  { name: "Go", color: "#00ADD8", bg: "#00ADD815" },
+  { name: "TypeScript", color: "#3178C6", bg: "#3178C615" },
+  { name: "Python", color: "#3776AB", bg: "#3776AB15" },
+  { name: "Java", color: "#ED8B00", bg: "#ED8B0015" },
+  { name: "Rust", color: "#DEA584", bg: "#DEA58415" },
+];
+---
+
+<section class="py-24 border-t border-[#333]">
+  <div class="container-main">
+    <div class="text-center mb-16">
+      <h2 class="text-3xl md:text-4xl font-bold mb-4">{t("multilang.title")}</h2>
+      <p class="text-[#888] text-lg max-w-2xl mx-auto">{t("multilang.subtitle")}</p>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-center gap-6">
+      {languages.map((lang_) => (
+        <div
+          class="glass px-8 py-6 flex items-center gap-4 hover:scale-105 transition-transform duration-200"
+          style={{ borderColor: lang_.color + "44" }}
+        >
+          <div
+            class="w-12 h-12 rounded-lg flex items-center justify-center text-lg font-bold"
+            style={{ background: lang_.bg, color: lang_.color }}
+          >
+            {lang_.name.slice(0, 2)}
+          </div>
+          <span class="text-lg font-semibold" style={{ color: lang_.color }}>{lang_.name}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

@@ -1,13 +1,10 @@
-name: Deploy Docs to GitHub Pages
+name: Deploy Website to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
-      - 'docs/**'
-      - 'specification/**'
-      - 'ARCHITECTURE-OVERVIEW.md'
-      - 'governance/**'
+      - 'site/**'
       - '.github/workflows/pages.yml'
 
   workflow_dispatch:
@@ -24,21 +21,30 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
-
-      - name: Build with Jekyll
-        uses: actions/jekyll-build-pages@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          source: ./
-          destination: ./_site
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Astro site
+        run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
 
   deploy:
     environment:

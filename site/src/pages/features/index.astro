@@ -1,0 +1,27 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+import FeatureDetail from "../../components/FeatureDetail.astro";
+import { featuresEN } from "../../content/features-en";
+
+const lang = "en";
+const t = (s: string) => s;
+---
+
+<PageLayout
+  lang={lang}
+  title="Features"
+  description="Explore all features of NAEOS — Core Pipeline, Spec Language v2, Multi-Language Code Generation, AI Integration, Marketplace, and Governance."
+>
+  <div slot="header">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      <span class="gradient-text">Features</span>
+    </h1>
+    <p class="text-lg text-[#888] mb-12 max-w-2xl">
+      A complete engineering runtime for specification-driven development. Every feature is designed to work together seamlessly.
+    </p>
+  </div>
+
+  <div class="container-main max-w-4xl mx-auto px-6">
+    {featuresEN.map(f => <FeatureDetail {...f} />)}
+  </div>
+</PageLayout>

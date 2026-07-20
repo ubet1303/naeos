@@ -1,0 +1,127 @@
+---
+import PageLayout from "../../../layouts/PageLayout.astro";
+
+const lang = "id";
+
+const endpoints = [
+  { method: "GET", path: "/api/v1/health", tag: "System", desc: "Endpoint health check. Mengembalikan kesehatan sistem termasuk status database dan uptime." },
+  { method: "GET", path: "/api/v1/specs", tag: "Specifications", desc: "Daftar semua spesifikasi yang terdaftar." },
+  { method: "POST", path: "/api/v1/specs", tag: "Specifications", desc: "Buat spesifikasi baru dari teks mentah." },
+  { method: "POST", path: "/api/v1/specs/validate", tag: "Specifications", desc: "Validasi spesifikasi. Mengembalikan error dan warning." },
+  { method: "POST", path: "/api/v1/specs/compile", tag: "Specifications", desc: "Kompilasi spesifikasi menjadi set instruksi AI." },
+  { method: "POST", path: "/api/v1/pipeline/run", tag: "Pipeline", desc: "Jalankan pipeline secara asinkron." },
+  { method: "GET", path: "/api/v1/pipeline/status", tag: "Pipeline", desc: "Dapatkan status eksekusi pipeline." },
+  { method: "GET", path: "/api/v1/pipelines", tag: "Pipeline", desc: "Daftar riwayat eksekusi pipeline." },
+  { method: "GET", path: "/api/v1/artifacts", tag: "Artifacts", desc: "Daftar artefak dengan pagination." },
+  { method: "POST", path: "/api/v1/artifacts", tag: "Artifacts", desc: "Unggah artefak." },
+  { method: "POST", path: "/api/v1/context/generate", tag: "Context", desc: "Hasilkan bundle konteks AI untuk spesifikasi." },
+  { method: "POST", path: "/api/v1/ai/enrich/stream", tag: "AI", desc: "Perkaya spesifikasi menggunakan AI (SSE stream)." },
+  { method: "POST", path: "/api/v1/ai/explain/stream", tag: "AI", desc: "Jelaskan arsitektur menggunakan AI (SSE stream)." },
+  { method: "POST", path: "/api/v1/ai/compile/stream", tag: "AI", desc: "Kompilasi spesifikasi untuk asisten AI (SSE stream)." },
+  { method: "POST", path: "/api/v1/cloud/plan", tag: "Cloud", desc: "Hasilkan rencana deployment cloud (AWS/GCP/Azure)." },
+  { method: "POST", path: "/api/v1/cloud/deploy", tag: "Cloud", desc: "Deploy ke cloud provider." },
+  { method: "POST", path: "/api/v1/cloud/destroy", tag: "Cloud", desc: "Hancurkan resource cloud." },
+  { method: "GET", path: "/api/v1/cloud/status", tag: "Cloud", desc: "Dapatkan status deployment cloud." },
+  { method: "GET", path: "/api/v1/plugins", tag: "Plugins", desc: "Daftar plugin yang terinstal." },
+  { method: "POST", path: "/api/v1/plugins", tag: "Plugins", desc: "Instal plugin." },
+  { method: "POST", path: "/api/v1/plugins/execute", tag: "Plugins", desc: "Jalankan perintah plugin." },
+  { method: "GET", path: "/api/v1/plugins/{name}", tag: "Plugins", desc: "Detail plugin." },
+  { method: "DELETE", path: "/api/v1/plugins/{name}", tag: "Plugins", desc: "Hapus plugin." },
+  { method: "POST", path: "/api/v1/mcp/message", tag: "MCP", desc: "Kirim pesan Model Context Protocol." },
+  { method: "GET", path: "/api/v1/version", tag: "System", desc: "Dapatkan informasi versi API." },
+  { method: "GET", path: "/api/v1/config/schema", tag: "System", desc: "Dapatkan JSON Schema untuk konfigurasi." },
+  { method: "GET", path: "/healthz", tag: "System", desc: "Liveness probe untuk Kubernetes." },
+  { method: "GET", path: "/readyz", tag: "System", desc: "Readiness probe untuk Kubernetes." },
+  { method: "GET", path: "/metrics", tag: "System", desc: "Endpoint metrik Prometheus." },
+  { method: "GET", path: "/.well-known/openid-configuration", tag: "System", desc: "Dokumen discovery OIDC." },
+];
+
+const tags = [...new Set(endpoints.map(e => e.tag))];
+const colors: Record<string, string> = {
+  System: "#00ff88",
+  Specifications: "#66b3ff",
+  Pipeline: "#ffaa00",
+  Artifacts: "#7C3AED",
+  Context: "#D97706",
+  AI: "#4285F4",
+  Cloud: "#00ADD8",
+  Plugins: "#DEA584",
+  MCP: "#ff4444",
+};
+---
+
+<PageLayout
+  lang={lang}
+  title="Referensi API"
+  description="Referensi REST API lengkap untuk NAEOS — 30+ endpoint di 9 kategori."
+>
+  <div slot="header">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      <span class="gradient-text">Referensi API</span>
+    </h1>
+    <p class="text-lg text-[#888] mb-4 max-w-2xl">
+      REST API komprehensif. Base URL: <code class="text-[#00ff88]">http://localhost:8080</code>
+    </p>
+    <div class="flex flex-wrap gap-2 mb-12">
+      {tags.map(t => (
+        <span class="text-xs font-mono px-2.5 py-1 rounded-full" style={{ background: (colors[t] || "#888") + "22", color: colors[t] || "#888", border: "1px solid " + (colors[t] || "#888") + "44" }}>
+          {t}
+        </span>
+      ))}
+    </div>
+  </div>
+
+  <div class="container-main max-w-5xl mx-auto px-6">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-[#666] uppercase tracking-wider text-xs border-b border-[#333]">
+            <th class="text-left pb-3 pr-4">Method</th>
+            <th class="text-left pb-3 pr-4">Path</th>
+            <th class="text-left pb-3 pr-4">Tag</th>
+            <th class="text-left pb-3">Deskripsi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {endpoints.map(ep => (
+            <tr class="border-b border-[#333] hover:bg-[#1a1a1a] transition-colors">
+              <td class="py-3 pr-4">
+                <span class={`font-mono text-xs font-bold px-2 py-1 rounded ${
+                  ep.method === "GET" ? "text-[#00ff88] bg-[#00ff88]15" :
+                  ep.method === "POST" ? "text-[#66b3ff] bg-[#66b3ff]15" :
+                  "text-[#ffaa00] bg-[#ffaa00]15"
+                }`}>{ep.method}</span>
+              </td>
+              <td class="py-3 pr-4 font-mono text-xs text-[#e0e0e0]">{ep.path}</td>
+              <td class="py-3 pr-4">
+                <span class="text-xs font-mono" style={{ color: colors[ep.tag] || "#888" }}>{ep.tag}</span>
+              </td>
+              <td class="py-3 text-xs text-[#888]">{ep.desc}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="glass p-8 mt-12">
+      <h2 class="text-xl font-bold mb-4">Mulai Cepat</h2>
+      <div class="space-y-4">
+        <div>
+          <p class="text-xs text-[#666] mb-1">Health check</p>
+          <div class="bg-[#0a0a0a] rounded-lg px-4 py-2.5">
+            <pre class="text-sm font-mono"><span class="text-[#00ff88]">$</span> curl http://localhost:8080/api/v1/health</pre>
+          </div>
+        </div>
+        <div>
+          <p class="text-xs text-[#666] mb-1">Validasi spesifikasi</p>
+          <div class="bg-[#0a0a0a] rounded-lg px-4 py-2.5">
+            <pre class="text-sm font-mono"><span class="text-[#00ff88]">$</span> curl http://localhost:8080/api/v1/specs/validate -X POST -H 'Content-Type: application/json' -d @spec.json</pre>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs text-[#666] mt-6">
+        Spesifikasi OpenAPI 3.0 lengkap tersedia di <a href="https://github.com/NAEOS-foundation/naeos/blob/main/docs/openapi.yaml" target="_blank" rel="noopener noreferrer" class="text-[#00ff88] hover:underline">GitHub</a>
+      </p>
+    </div>
+  </div>
+</PageLayout>

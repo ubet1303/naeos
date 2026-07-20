@@ -1,0 +1,133 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+
+const lang = "en";
+
+const endpoints = [
+  { method: "GET", path: "/api/v1/health", tag: "System", desc: "Health check endpoint. Returns overall system health including database status and uptime." },
+  { method: "GET", path: "/api/v1/specs", tag: "Specifications", desc: "List all registered specifications." },
+  { method: "POST", path: "/api/v1/specs", tag: "Specifications", desc: "Create a new specification from raw text." },
+  { method: "POST", path: "/api/v1/specs/validate", tag: "Specifications", desc: "Validate specification for correctness. Returns errors and warnings." },
+  { method: "POST", path: "/api/v1/specs/compile", tag: "Specifications", desc: "Compile specification into AI instruction sets." },
+  { method: "POST", path: "/api/v1/pipeline/run", tag: "Pipeline", desc: "Execute a pipeline run asynchronously." },
+  { method: "GET", path: "/api/v1/pipeline/status", tag: "Pipeline", desc: "Get pipeline execution status." },
+  { method: "GET", path: "/api/v1/pipelines", tag: "Pipeline", desc: "List historical pipeline runs." },
+  { method: "GET", path: "/api/v1/artifacts", tag: "Artifacts", desc: "List artifacts with pagination." },
+  { method: "POST", path: "/api/v1/artifacts", tag: "Artifacts", desc: "Upload an artifact." },
+  { method: "POST", path: "/api/v1/context/generate", tag: "Context", desc: "Generate AI context bundle for a spec." },
+  { method: "POST", path: "/api/v1/ai/enrich/stream", tag: "AI", desc: "Enrich specification using AI (SSE stream)." },
+  { method: "POST", path: "/api/v1/ai/explain/stream", tag: "AI", desc: "Explain architecture using AI (SSE stream)." },
+  { method: "POST", path: "/api/v1/ai/compile/stream", tag: "AI", desc: "Compile spec for AI assistant (SSE stream)." },
+  { method: "POST", path: "/api/v1/cloud/plan", tag: "Cloud", desc: "Generate cloud deployment plan (AWS/GCP/Azure)." },
+  { method: "POST", path: "/api/v1/cloud/deploy", tag: "Cloud", desc: "Deploy to cloud provider." },
+  { method: "POST", path: "/api/v1/cloud/destroy", tag: "Cloud", desc: "Destroy cloud resources." },
+  { method: "GET", path: "/api/v1/cloud/status", tag: "Cloud", desc: "Get cloud deployment status." },
+  { method: "GET", path: "/api/v1/plugins", tag: "Plugins", desc: "List installed plugins." },
+  { method: "POST", path: "/api/v1/plugins", tag: "Plugins", desc: "Install a plugin." },
+  { method: "POST", path: "/api/v1/plugins/execute", tag: "Plugins", desc: "Execute a plugin command." },
+  { method: "GET", path: "/api/v1/plugins/{name}", tag: "Plugins", desc: "Get plugin details." },
+  { method: "DELETE", path: "/api/v1/plugins/{name}", tag: "Plugins", desc: "Uninstall a plugin." },
+  { method: "POST", path: "/api/v1/mcp/message", tag: "MCP", desc: "Send a Model Context Protocol message." },
+  { method: "GET", path: "/api/v1/version", tag: "System", desc: "Get API version information." },
+  { method: "GET", path: "/api/v1/config/schema", tag: "System", desc: "Get JSON Schema for configuration." },
+  { method: "GET", path: "/healthz", tag: "System", desc: "Liveness probe for Kubernetes." },
+  { method: "GET", path: "/readyz", tag: "System", desc: "Readiness probe for Kubernetes." },
+  { method: "GET", path: "/metrics", tag: "System", desc: "Prometheus metrics endpoint." },
+  { method: "GET", path: "/.well-known/openid-configuration", tag: "System", desc: "OIDC discovery document." },
+];
+
+const tags = [...new Set(endpoints.map(e => e.tag))];
+const colors: Record<string, string> = {
+  System: "#00ff88",
+  Specifications: "#66b3ff",
+  Pipeline: "#ffaa00",
+  Artifacts: "#7C3AED",
+  Context: "#D97706",
+  AI: "#4285F4",
+  Cloud: "#00ADD8",
+  Plugins: "#DEA584",
+  MCP: "#ff4444",
+};
+---
+
+<PageLayout
+  lang={lang}
+  title="API Reference"
+  description="Complete REST API reference for NAEOS — 30+ endpoints across 9 categories."
+>
+  <div slot="header">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      <span class="gradient-text">API Reference</span>
+    </h1>
+    <p class="text-lg text-[#888] mb-4 max-w-2xl">
+      Comprehensive REST API. Base URL: <code class="text-[#00ff88]">http://localhost:8080</code>
+    </p>
+    <div class="flex flex-wrap gap-2 mb-12">
+      {tags.map(t => (
+        <span class="text-xs font-mono px-2.5 py-1 rounded-full" style={{ background: (colors[t] || "#888") + "22", color: colors[t] || "#888", border: "1px solid " + (colors[t] || "#888") + "44" }}>
+          {t}
+        </span>
+      ))}
+    </div>
+  </div>
+
+  <div class="container-main max-w-5xl mx-auto px-6">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-[#666] uppercase tracking-wider text-xs border-b border-[#333]">
+            <th class="text-left pb-3 pr-4">Method</th>
+            <th class="text-left pb-3 pr-4">Path</th>
+            <th class="text-left pb-3 pr-4">Tag</th>
+            <th class="text-left pb-3">Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {endpoints.map(ep => (
+            <tr class="border-b border-[#333] hover:bg-[#1a1a1a] transition-colors">
+              <td class="py-3 pr-4">
+                <span class={`font-mono text-xs font-bold px-2 py-1 rounded ${
+                  ep.method === "GET" ? "text-[#00ff88] bg-[#00ff88]15" :
+                  ep.method === "POST" ? "text-[#66b3ff] bg-[#66b3ff]15" :
+                  "text-[#ffaa00] bg-[#ffaa00]15"
+                }`}>{ep.method}</span>
+              </td>
+              <td class="py-3 pr-4 font-mono text-xs text-[#e0e0e0]">{ep.path}</td>
+              <td class="py-3 pr-4">
+                <span class="text-xs font-mono" style={{ color: colors[ep.tag] || "#888" }}>{ep.tag}</span>
+              </td>
+              <td class="py-3 text-xs text-[#888]">{ep.desc}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="glass p-8 mt-12">
+      <h2 class="text-xl font-bold mb-4">Quick Start</h2>
+      <div class="space-y-4">
+        <div>
+          <p class="text-xs text-[#666] mb-1">Health check</p>
+          <div class="bg-[#0a0a0a] rounded-lg px-4 py-2.5">
+            <pre class="text-sm font-mono"><span class="text-[#00ff88]">$</span> curl http://localhost:8080/api/v1/health</pre>
+          </div>
+        </div>
+        <div>
+          <p class="text-xs text-[#666] mb-1">Validate a spec</p>
+          <div class="bg-[#0a0a0a] rounded-lg px-4 py-2.5">
+            <pre class="text-sm font-mono"><span class="text-[#00ff88]">$</span> curl http://localhost:8080/api/v1/specs/validate -X POST -H 'Content-Type: application/json' -d @spec.json</pre>
+          </div>
+        </div>
+        <div>
+          <p class="text-xs text-[#666] mb-1">Run pipeline</p>
+          <div class="bg-[#0a0a0a] rounded-lg px-4 py-2.5">
+            <pre class="text-sm font-mono"><span class="text-[#00ff88]">$</span> curl http://localhost:8080/api/v1/pipeline/run -X POST -H 'Content-Type: application/json' -d @pipeline.json</pre>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs text-[#666] mt-6">
+        Full OpenAPI 3.0 spec available on <a href="https://github.com/NAEOS-foundation/naeos/blob/main/docs/openapi.yaml" target="_blank" rel="noopener noreferrer" class="text-[#00ff88] hover:underline">GitHub</a>
+      </p>
+    </div>
+  </div>
+</PageLayout>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 48" fill="none">
+  <path d="M8 6L20 6L32 42L20 42L8 6Z" fill="#00ff88" opacity="0.3"/>
+  <path d="M16 6L28 6L40 42L28 42L16 6Z" fill="#00ff88" opacity="0.6"/>
+  <path d="M24 6L36 6L44 34L36 42L24 6Z" fill="#00ff88"/>
+  <text x="52" y="32" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="700" fill="#e0e0e0" letter-spacing="-0.5">NAEOS</text>
+</svg>

@@ -1,0 +1,15 @@
+{
+  "name": "naeos-website",
+  "version": "1.0.0",
+  "description": "Official NAEOS website - Specify Once. Build Anywhere.",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "keywords": ["naeos", "engineering", "platform", "declarative"],
+  "author": "NAEOS Foundation",
+  "license": "Apache-2.0"
+}

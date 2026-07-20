@@ -1,0 +1,185 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+
+const lang = "en";
+
+const examples = [
+  {
+    title: "E-Commerce Platform",
+    desc: "A full-featured e-commerce system with hexagonal architecture, 5 modules, and 2 services.",
+    spec: `project: e-commerce-platform
+
+modules:
+  - name: auth
+    path: ./internal/auth
+    description: Authentication module
+    dependencies: [core, user]
+
+  - name: core
+    path: ./internal/core
+    description: Core business logic
+
+  - name: user
+    path: ./internal/user
+    description: User management
+    dependencies: [core]
+
+  - name: order
+    path: ./internal/order
+    description: Order processing
+    dependencies: [core, user, payment]
+
+  - name: payment
+    path: ./internal/payment
+    description: Payment processing
+    dependencies: [core]
+
+services:
+  - name: api-gateway
+    kind: http
+    port: 8080
+    endpoints:
+      - method: GET  path: /health   action: healthCheck
+      - method: POST path: /auth/login  action: login
+      - method: GET  path: /users/:id   action: getUser
+      - method: POST path: /orders   action: createOrder
+      - method: POST path: /payments action: processPayment
+
+  - name: worker
+    kind: worker
+    port: 9090
+    endpoints:
+      - method: POST path: /jobs/process action: processJob
+
+architecture:
+  pattern: hexagonal
+  principles:
+    - Core business logic is framework-independent
+    - Ports define interfaces for external communication
+    - Adapters implement ports for specific technologies
+    - Dependencies point inward toward the core
+
+deployment:
+  strategy: blue-green
+  environments: [development, staging, production]
+
+generation:
+  languages: [go, typescript]
+  output_dir: ./out`,
+  },
+  {
+    title: "Event-Driven Order Processing",
+    desc: "An asynchronous microservice system communicating via event broker (NATS/RabbitMQ).",
+    spec: `project: order-processing-system
+
+modules:
+  - name: order
+    path: ./internal/order
+    description: Domain logic for orders, emits OrderCreated events
+    dependencies: [core]
+  - name: inventory
+    path: ./internal/inventory
+    description: Updates inventory on OrderCreated event
+    dependencies: [core]
+  - name: payment
+    path: ./internal/payment
+    description: Processes payments for orders
+    dependencies: [core]
+  - name: core
+    path: ./internal/core
+    description: Shared kernels and contracts
+
+services:
+  - name: api-gateway
+    kind: http
+    port: 8080
+    endpoints:
+      - method: POST path: /orders action: createOrder
+      - method: GET  path: /orders/{id} action: getOrder
+  - name: order-worker
+    kind: worker
+    port: 8081
+    endpoints:
+      - method: POST path: /events/order-created action: handleOrderCreated
+  - name: inventory-worker
+    kind: worker
+    port: 8082
+    endpoints:
+      - method: POST path: /events/order-created action: handleOrderCreated
+
+architecture:
+  pattern: event-driven
+  principles:
+    - Loose coupling via asynchronous messaging
+    - Each service owns its data
+    - Event schemas are versioned
+    - Idempotent event handling
+
+deployment:
+  strategy: rolling-update
+  environments: [development, staging, production]
+
+generation:
+  languages: [go, typescript, python, rust]
+  output_dir: ./out`,
+  },
+  {
+    title: "Minimal Project",
+    desc: "The simplest possible NAEOS spec — all fields except project are optional.",
+    spec: `# Minimal NAEOS Specification
+# All fields except project are optional (defaults will be applied)
+
+project: my-project`,
+  },
+];
+---
+
+<PageLayout
+  lang={lang}
+  title="Showcase"
+  description="Real NAEOS specification examples — from minimal to full production systems."
+>
+  <div slot="header">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      <span class="gradient-text">Showcase</span>
+    </h1>
+    <p class="text-lg text-[#888] mb-12 max-w-2xl">
+      Real specification examples demonstrating NAEOS in action. From minimal to full production systems.
+    </p>
+  </div>
+
+  <div class="container-main max-w-5xl mx-auto px-6">
+    {examples.map((ex, i) => (
+      <div class="mb-12">
+        <div class="flex items-baseline gap-3 mb-4">
+          <span class="text-sm font-bold text-[#00ff88] font-mono">0{i + 1}</span>
+          <h2 class="text-2xl font-bold">{ex.title}</h2>
+        </div>
+        <p class="text-sm text-[#888] mb-4">{ex.desc}</p>
+        <div class="bg-[#0a0a0a] rounded-xl border border-[#333] overflow-hidden">
+          <div class="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#333] bg-[#111]">
+            <div class="w-3 h-3 rounded-full bg-[#ff5f56]" />
+            <div class="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+            <div class="w-3 h-3 rounded-full bg-[#27c93f]" />
+            <span class="text-xs text-[#666] font-mono ml-2">spec.yaml</span>
+          </div>
+          <pre class="text-sm font-mono text-[#e0e0e0] p-5 overflow-x-auto leading-relaxed"><span class="text-[#666]"># {ex.title}</span>
+{ex.spec}</pre>
+        </div>
+      </div>
+    ))}
+
+    <div class="glass p-8 text-center mb-12">
+      <h3 class="text-lg font-semibold mb-2">Try it yourself</h3>
+      <p class="text-sm text-[#888] mb-6">Create your first spec in minutes and run the pipeline.</p>
+      <div class="bg-[#0a0a0a] rounded-lg p-4 inline-block text-left">
+        <pre class="text-sm font-mono"><span class="text-[#00ff88]">$</span> <span class="text-[#e0e0e0]">cat > spec.yaml << 'EOF'</span>
+<span class="text-[#e0e0e0]">project: my-app</span>
+<span class="text-[#e0e0e0]">generation:</span>
+<span class="text-[#e0e0e0]">  languages: [go]</span>
+<span class="text-[#e0e0e0]">EOF</span>
+<span class="text-[#00ff88]">$</span> <span class="text-[#e0e0e0]">naeos run --config config.yaml --input-file spec.yaml</span></pre>
+      </div>
+    </div>
+  </div>
+</PageLayout>

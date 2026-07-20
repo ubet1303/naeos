@@ -1,0 +1,109 @@
+---
+import PageLayout from "../../../layouts/PageLayout.astro";
+
+const lang = "id";
+
+const stages = [
+  { num: 1, name: "Parser", desc: "Membaca file spesifikasi YAML/JSON. Menangani <code>$include</code>, <code>$import</code>, interpolasi variabel (<code>${var}</code>), dan variabel lingkungan (<code>$env{VAR}</code>).", color: "#00ff88" },
+  { num: 2, name: "Normalizer", desc: "Menormalisasi struktur data, menerapkan koersi tipe, dan menyelesaikan nilai default. Menyiapkan model data yang konsisten untuk tahap hilir.", color: "#66b3ff" },
+  { num: 3, name: "Resolver", desc: "Menyelesaikan referensi silang (<code>$ref{path}</code>), impor file (<code>$include</code>, <code>$import</code>), dan fungsi kustom (<code>$fn{name}</code>). Pembatasan kedalaman mencegah impor sirkuler.", color: "#7C3AED" },
+  { num: 4, name: "NEIR Builder", desc: "Membangun NAEOS Engineering Intermediate Representation — model proyek terpadu yang mencakup proyek, arsitektur, domain, modul, komponen, layanan, API, penyimpanan, infrastruktur, keamanan, AI, dokumentasi, deployment, pengujian, dan metadata.", color: "#00ff88" },
+  { num: 5, name: "Validator", desc: "Validasi komprehensif: deteksi dependensi sirkuler, resolusi konflik port, penegakan batasan modul, pemeriksaan versi skema.", color: "#ffaa00" },
+  { num: 6, name: "Scheduler", desc: "Penjadwalan tugas berbasis DAG. Menganalisis grafik dependensi, menentukan jalur eksekusi paralel, dan membuat rencana eksekusi yang dioptimalkan.", color: "#D97706" },
+  { num: 7, name: "Generator", desc: "Generasi kode multi-bahasa. Mendelegasikan ke adapter spesifik bahasa (Go, TypeScript, Python, Java, Rust) dan renderer spesifik framework.", color: "#00ADD8" },
+  { num: 8, name: "Renderer", desc: "Mesin rendering template. Memproses template Go text/templates untuk README, Makefile, Dockerfile, docker-compose, .gitignore, dan dokumen arsitektur.", color: "#4285F4" },
+  { num: 9, name: "Reviewer", desc: "Evaluasi kebijakan dan review artefak. Menegakkan aturan tata kelola, menjalankan analisis keamanan, dan menghasilkan entri jejak audit.", color: "#ff4444" },
+];
+---
+
+<PageLayout
+  lang={lang}
+  title="Arsitektur"
+  description="NAEOS mengubah spesifikasi menjadi artefak melalui pipeline 9 tahap — dari parsing hingga review kebijakan."
+>
+  <div slot="header">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      <span class="gradient-text">Arsitektur</span>
+    </h1>
+    <p class="text-lg text-[#888] mb-4 max-w-2xl">
+      NAEOS dibangun di sekitar pipeline sentral yang mengorkestrasi transformasi dari spesifikasi menjadi artefak yang dapat dideploy.
+    </p>
+  </div>
+
+  <div class="container-main max-w-4xl mx-auto px-6">
+    <div class="glass p-8 mb-12 text-center">
+      <h2 class="text-lg font-semibold mb-4">Ikhtisar Pipeline</h2>
+      <div class="flex flex-wrap items-center justify-center gap-1 text-sm font-mono">
+        <span class="px-3 py-1.5 rounded bg-[#00ff88] text-[#0a0a0a] font-semibold">Input Spec</span>
+        <span class="text-[#666]">→</span>
+        <span class="px-3 py-1.5 rounded bg-[#1a1a1a] border border-[#333]">Parser</span>
+        <span class="text-[#666]">→</span>
+        <span class="px-3 py-1.5 rounded bg-[#1a1a1a] border border-[#333]">Normalizer</span>
+        <span class="text-[#666]">→</span>
+        <span class="px-3 py-1.5 rounded bg-[#1a1a1a] border border-[#333]">Resolver</span>
+        <span class="text-[#666]">→</span>
+        <span class="px-3 py-1.5 rounded bg-[#1a1a1a] border border-[#00ff88]">NEIR</span>
+        <span class="text-[#666]">→</span>
+        <span class="px-3 py-1.5 rounded bg-[#1a1a1a] border border-[#333]">Validator</span>
+        <span class="text-[#666]">→</span>
+        <span class="px-3 py-1.5 rounded bg-[#1a1a1a] border border-[#333]">Scheduler</span>
+        <span class="text-[#666]">→</span>
+        <span class="px-3 py-1.5 rounded bg-[#1a1a1a] border border-[#333]">Generator</span>
+        <span class="text-[#666]">→</span>
+        <span class="px-3 py-1.5 rounded bg-[#1a1a1a] border border-[#333]">Renderer</span>
+        <span class="text-[#666]">→</span>
+        <span class="px-3 py-1.5 rounded bg-[#1a1a1a] border border-[#333]">Reviewer</span>
+        <span class="text-[#666]">→</span>
+        <span class="px-3 py-1.5 rounded bg-[#00ff88] text-[#0a0a0a] font-semibold">Artefak</span>
+      </div>
+    </div>
+
+    <div class="mb-12">
+      <h2 class="text-2xl font-bold mb-6">Tahapan Pipeline</h2>
+      <div class="space-y-6">
+        {stages.map(s => (
+          <div class="glass p-6 flex gap-6">
+            <div
+              class="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0"
+              style={{ background: s.color + "22", color: s.color, border: "2px solid " + s.color }}
+            >
+              {s.num}
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold mb-2" style={{ color: s.color }}>{s.name}</h3>
+              <p class="text-sm text-[#888] leading-relaxed" set:html={s.desc} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="glass p-8 mb-12">
+      <h2 class="text-xl font-bold mb-4">Layanan Pendukung</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="border border-[#333] rounded-lg p-4">
+          <h3 class="font-semibold text-[#00ff88] mb-2">Kernel</h3>
+          <p class="text-sm text-[#888]">Registry layanan, event bus (pub/sub), koleksi telemetri, dan manajemen siklus hidup untuk semua layanan pipeline.</p>
+        </div>
+        <div class="border border-[#333] rounded-lg p-4">
+          <h3 class="font-semibold text-[#66b3ff] mb-2">Graph</h3>
+          <p class="text-sm text-[#888]">Konstruksi dan analisis DAG dependensi untuk menentukan jalur eksekusi paralel dan pengurutan topologis.</p>
+        </div>
+        <div class="border border-[#333] rounded-lg p-4">
+          <h3 class="font-semibold text-[#7C3AED] mb-2">Registry</h3>
+          <p class="text-sm text-[#888]">Penemuan komponen dan pendaftaran layanan untuk ekstensibilitas pipeline melalui plugin.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass p-8 mb-12">
+      <h2 class="text-xl font-bold mb-4">Model NEIR</h2>
+      <p class="text-sm text-[#888] mb-4">NAEOS Engineering Intermediate Representation adalah model sentral yang mewakili seluruh sistem. Dibangun oleh pipeline dan dikonsumsi oleh semua tahap hilir.</p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        {["Project", "Architecture", "Domain", "Modules", "Components", "Services", "APIs", "Storage", "Infrastructure", "Security", "AI", "Documentation", "Deployment", "Testing", "Metadata", "Generation"].map(f => (
+          <div class="bg-[#0a0a0a] rounded px-3 py-2 text-[#e0e0e0] font-mono text-xs border border-[#333]">{f}</div>
+        ))}
+      </div>
+    </div>
+  </div>
+</PageLayout>

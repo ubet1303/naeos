@@ -1,0 +1,135 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+
+const lang = "en";
+
+const docSections = [
+  {
+    title: "Getting Started",
+    icon: "🚀",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/GETTING-STARTED.md", label: "Getting Started Guide" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/README.md", label: "README Overview" },
+      { href: "https://github.com/NAEOS-foundation/naeos#quick-start", label: "Quick Start" },
+    ],
+  },
+  {
+    title: "Specification",
+    icon: "📋",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-030-Specification-Language.md", label: "Spec Language v2 Reference" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-023-NEIR-Model.md", label: "NEIR Model" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-031-Errors.md", label: "Error Reference" },
+    ],
+  },
+  {
+    title: "CLI & Pipeline",
+    icon: "⚡",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-028-CLI-Reference.md", label: "CLI Reference (full)" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-026-Pipeline.md", label: "Pipeline Architecture" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-029-Configuration.md", label: "Configuration Guide" },
+    ],
+  },
+  {
+    title: "AI & Compiler",
+    icon: "🤖",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-013-Compiler.md", label: "AI Compiler" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-040-Output-Adapter-Architecture.md", label: "Output Adapters" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-054-PromptLibrary.md", label: "Prompt Library" },
+    ],
+  },
+  {
+    title: "Marketplace & Plugins",
+    icon: "🛒",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-009-Plugin.md", label: "Plugin System" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-053-WASMPlugin.md", label: "WASM Plugin SDK" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-008-Registry.md", label: "Registry" },
+    ],
+  },
+  {
+    title: "Architecture & Design",
+    icon: "🏗️",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-002-Kernel.md", label: "Kernel API" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-016-AI.md", label: "AI Integration" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-018-Cloud.md", label: "Cloud Deployment" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-042-Database.md", label: "Database Layer" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-043-WebSocket.md", label: "WebSocket Protocol" },
+    ],
+  },
+  {
+    title: "Governance & Security",
+    icon: "🛡️",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-027-Governance.md", label: "Governance" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-012-Policy.md", label: "Policy Engine" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-049-AuditLogging.md", label: "Audit Logging" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-020-Security.md", label: "Security" },
+    ],
+  },
+  {
+    title: "Testing & Quality",
+    icon: "🧪",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-033-Testing-Guide.md", label: "Testing Guide" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-021-Testing.md", label: "Multi-Language Testing" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-041-Troubleshooting.md", label: "Troubleshooting" },
+    ],
+  },
+];
+---
+
+<PageLayout
+  lang={lang}
+  title="Documentation"
+  description="Comprehensive documentation for NAEOS — 56 NES specifications covering every aspect of the platform."
+>
+  <div slot="header">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      <span class="gradient-text">Documentation</span>
+    </h1>
+    <p class="text-lg text-[#888] mb-4 max-w-2xl">
+      56 NES specifications covering the full platform. Also explore the <a href="https://github.com/NAEOS-foundation/naeos/tree/main/wiki" target="_blank" rel="noopener noreferrer" class="text-[#00ff88] hover:underline">Wiki</a> for 19 pages of comprehensive guides.
+    </p>
+    <div class="flex flex-wrap gap-3 mb-12">
+      <a href="https://github.com/NAEOS-foundation/naeos/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" class="glass px-4 py-2 text-sm hover:border-[#00ff88] transition-colors">Contributing Guide ↗</a>
+      <a href="https://github.com/NAEOS-foundation/naeos/blob/main/ARCHITECTURE-OVERVIEW.md" target="_blank" rel="noopener noreferrer" class="glass px-4 py-2 text-sm hover:border-[#00ff88] transition-colors">Architecture Overview ↗</a>
+      <a href="https://github.com/NAEOS-foundation/naeos/blob/main/DOCUMENTATION-INDEX.md" target="_blank" rel="noopener noreferrer" class="glass px-4 py-2 text-sm hover:border-[#00ff88] transition-colors">Documentation Index ↗</a>
+      <a href="https://github.com/NAEOS-foundation/naeos/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" class="glass px-4 py-2 text-sm hover:border-[#00ff88] transition-colors">Changelog ↗</a>
+    </div>
+  </div>
+
+  <div class="container-main max-w-5xl mx-auto px-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {docSections.map(s => (
+        <div class="glass p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl">{s.icon}</span>
+            <h2 class="text-lg font-bold">{s.title}</h2>
+          </div>
+          <ul class="space-y-2">
+            {s.links.map(l => (
+              <li>
+                <a href={l.href} target="_blank" rel="noopener noreferrer" class="text-sm text-[#888] hover:text-[#00ff88] transition-colors flex items-center gap-1">
+                  {l.label}
+                  <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+
+    <div class="glass p-8 mt-8 text-center">
+      <h3 class="text-lg font-semibold mb-2">All 56 NES Specifications</h3>
+      <p class="text-sm text-[#888] mb-4">Browse the complete spec collection on GitHub.</p>
+      <a href="https://github.com/NAEOS-foundation/naeos/tree/main/docs" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#00ff88] text-[#0a0a0a] font-semibold hover:bg-[#00cc6a] transition-colors">
+        Browse Docs on GitHub ↗
+      </a>
+    </div>
+  </div>
+</PageLayout>

@@ -1,0 +1,74 @@
+---
+import type { Lang } from "../i18n/utils";
+import { useTranslations } from "../i18n/utils";
+
+export interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+const isID = lang === "id";
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+const features = [
+  {
+    icon: "⚡",
+    titleKey: "features.pipeline",
+    descKey: "features.pipeline.desc",
+  },
+  {
+    icon: "📋",
+    titleKey: "features.spec",
+    descKey: "features.spec.desc",
+  },
+  {
+    icon: "🌐",
+    titleKey: "features.multilang",
+    descKey: "features.multilang.desc",
+  },
+  {
+    icon: "🤖",
+    titleKey: "features.ai",
+    descKey: "features.ai.desc",
+  },
+  {
+    icon: "🛒",
+    titleKey: "features.marketplace",
+    descKey: "features.marketplace.desc",
+  },
+  {
+    icon: "🛡️",
+    titleKey: "features.governance",
+    descKey: "features.governance.desc",
+  },
+];
+---
+
+<section id="features" class="py-24 border-t border-[#333]">
+  <div class="container-main">
+    <div class="text-center mb-16">
+      <h2 class="text-3xl md:text-4xl font-bold mb-4">{t("features.title")}</h2>
+      <p class="text-[#888] text-lg max-w-2xl mx-auto">{t("features.subtitle")}</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {features.map((f) => (
+        <div class="glass p-6 hover:border-[#00ff88]/30 transition-all duration-300 group">
+          <div class="text-2xl mb-4">{f.icon}</div>
+          <h3 class="text-lg font-semibold mb-2 group-hover:text-[#00ff88] transition-colors">{t(f.titleKey)}</h3>
+          <p class="text-sm text-[#888] leading-relaxed">{t(f.descKey)}</p>
+        </div>
+      ))}
+    </div>
+
+    <div class="text-center mt-10">
+      <a
+        href={isID ? `${base}/id/features/` : `${base}/features/`}
+        class="inline-flex items-center gap-2 text-sm text-[#888] hover:text-[#00ff88] transition-colors"
+      >
+        {isID ? "Lihat semua fitur detail →" : "View all features in detail →"}
+      </a>
+    </div>
+  </div>
+</section>

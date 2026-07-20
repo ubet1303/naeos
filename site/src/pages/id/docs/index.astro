@@ -1,0 +1,128 @@
+---
+import PageLayout from "../../../layouts/PageLayout.astro";
+
+const lang = "id";
+
+const docSections = [
+  {
+    title: "Memulai",
+    icon: "🚀",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/GETTING-STARTED.md", label: "Panduan Memulai" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/README.md", label: "Ikhtisar README" },
+      { href: "https://github.com/NAEOS-foundation/naeos#quick-start", label: "Mulai Cepat" },
+    ],
+  },
+  {
+    title: "Spesifikasi",
+    icon: "📋",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-030-Specification-Language.md", label: "Referensi Spec Language v2" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-023-NEIR-Model.md", label: "Model NEIR" },
+    ],
+  },
+  {
+    title: "CLI & Pipeline",
+    icon: "⚡",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-028-CLI-Reference.md", label: "Referensi CLI (lengkap)" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-026-Pipeline.md", label: "Arsitektur Pipeline" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-029-Configuration.md", label: "Panduan Konfigurasi" },
+    ],
+  },
+  {
+    title: "AI & Compiler",
+    icon: "🤖",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-013-Compiler.md", label: "Compiler AI" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-040-Output-Adapter-Architecture.md", label: "Adapter Output" },
+    ],
+  },
+  {
+    title: "Marketplace & Plugin",
+    icon: "🛒",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-009-Plugin.md", label: "Sistem Plugin" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-053-WASMPlugin.md", label: "WASM Plugin SDK" },
+    ],
+  },
+  {
+    title: "Arsitektur & Desain",
+    icon: "🏗️",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-002-Kernel.md", label: "Kernel API" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-016-AI.md", label: "Integrasi AI" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-018-Cloud.md", label: "Deploy Cloud" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-042-Database.md", label: "Lapisan Database" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-043-WebSocket.md", label: "Protokol WebSocket" },
+    ],
+  },
+  {
+    title: "Tata Kelola & Keamanan",
+    icon: "🛡️",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-027-Governance.md", label: "Tata Kelola" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-012-Policy.md", label: "Policy Engine" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-049-AuditLogging.md", label: "Audit Logging" },
+    ],
+  },
+  {
+    title: "Pengujian & Kualitas",
+    icon: "🧪",
+    links: [
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-033-Testing-Guide.md", label: "Panduan Pengujian" },
+      { href: "https://github.com/NAEOS-foundation/naeos/blob/main/docs/NES-041-Troubleshooting.md", label: "Pemecahan Masalah" },
+    ],
+  },
+];
+---
+
+<PageLayout
+  lang={lang}
+  title="Dokumentasi"
+  description="Dokumentasi komprehensif untuk NAEOS — 56 spesifikasi NES yang mencakup setiap aspek platform."
+>
+  <div slot="header">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      <span class="gradient-text">Dokumentasi</span>
+    </h1>
+    <p class="text-lg text-[#888] mb-4 max-w-2xl">
+      56 spesifikasi NES yang mencakup seluruh platform. Jelajahi juga <a href="https://github.com/NAEOS-foundation/naeos/tree/main/wiki" target="_blank" rel="noopener noreferrer" class="text-[#00ff88] hover:underline">Wiki</a> untuk 19 halaman panduan komprehensif.
+    </p>
+    <div class="flex flex-wrap gap-3 mb-12">
+      <a href="https://github.com/NAEOS-foundation/naeos/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" class="glass px-4 py-2 text-sm hover:border-[#00ff88] transition-colors">Panduan Kontribusi ↗</a>
+      <a href="https://github.com/NAEOS-foundation/naeos/blob/main/DOCUMENTATION-INDEX.md" target="_blank" rel="noopener noreferrer" class="glass px-4 py-2 text-sm hover:border-[#00ff88] transition-colors">Indeks Dokumentasi ↗</a>
+    </div>
+  </div>
+
+  <div class="container-main max-w-5xl mx-auto px-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {docSections.map(s => (
+        <div class="glass p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl">{s.icon}</span>
+            <h2 class="text-lg font-bold">{s.title}</h2>
+          </div>
+          <ul class="space-y-2">
+            {s.links.map(l => (
+              <li>
+                <a href={l.href} target="_blank" rel="noopener noreferrer" class="text-sm text-[#888] hover:text-[#00ff88] transition-colors flex items-center gap-1">
+                  {l.label}
+                  <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+
+    <div class="glass p-8 mt-8 text-center">
+      <h3 class="text-lg font-semibold mb-2">Semua 56 Spesifikasi NES</h3>
+      <p class="text-sm text-[#888] mb-4">Jelajahi koleksi spesifikasi lengkap di GitHub.</p>
+      <a href="https://github.com/NAEOS-foundation/naeos/tree/main/docs" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#00ff88] text-[#0a0a0a] font-semibold hover:bg-[#00cc6a] transition-colors">
+        Jelajahi Docs di GitHub ↗
+      </a>
+    </div>
+  </div>
+</PageLayout>

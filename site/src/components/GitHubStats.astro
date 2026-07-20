@@ -1,0 +1,42 @@
+---
+const repo = "NAEOS-foundation/naeos";
+---
+
+<div class="glass p-6" id="github-stats">
+  <h3 class="text-sm font-semibold text-[#888] uppercase tracking-wider mb-4">GitHub</h3>
+  <div class="grid grid-cols-3 gap-4 text-center">
+    <div class="stat-card">
+      <div class="text-2xl font-bold text-[#00ff88] stat-value" id="gh-stars">—</div>
+      <div class="text-xs text-[#666] mt-1">Stars</div>
+    </div>
+    <div class="stat-card">
+      <div class="text-2xl font-bold text-[#66b3ff] stat-value" id="gh-forks">—</div>
+      <div class="text-xs text-[#666] mt-1">Forks</div>
+    </div>
+    <div class="stat-card">
+      <div class="text-2xl font-bold text-[#ffaa00] stat-value" id="gh-issues">—</div>
+      <div class="text-xs text-[#666] mt-1">Issues</div>
+    </div>
+  </div>
+  <div class="mt-4 text-center">
+    <a href="https://github.com/{repo}" target="_blank" rel="noopener noreferrer" class="text-xs text-[#888] hover:text-[#00ff88] transition-colors">
+      View on GitHub ↗
+    </a>
+  </div>
+</div>
+
+<script>
+  (async function() {
+    try {
+      const res = await fetch("https://api.github.com/repos/NAEOS-foundation/naeos");
+      if (!res.ok) throw new Error("GitHub API error");
+      const data = await res.json();
+      const fmt = (n) => n >= 1000 ? (n / 1000).toFixed(1) + "k" : n;
+      document.getElementById("gh-stars").textContent = fmt(data.stargazers_count ?? "—");
+      document.getElementById("gh-forks").textContent = fmt(data.forks_count ?? "—");
+      document.getElementById("gh-issues").textContent = fmt(data.open_issues_count ?? "—");
+    } catch {
+      // fallback: keep "—"
+    }
+  })();
+</script>

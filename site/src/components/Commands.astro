@@ -1,0 +1,86 @@
+---
+import type { Lang } from "../i18n/utils";
+import { useTranslations } from "../i18n/utils";
+
+export interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+type CmdGroup = {
+  group: string;
+  commands: { name: string; descKey: string }[];
+};
+
+const cmdGroups: CmdGroup[] = [
+  {
+    group: "Core",
+    commands: [
+      { name: "run", descKey: "commands.run" },
+      { name: "validate", descKey: "commands.validate" },
+      { name: "compile", descKey: "commands.compile" },
+      { name: "context", descKey: "commands.context" },
+    ],
+  },
+  {
+    group: "Development",
+    commands: [
+      { name: "test", descKey: "commands.test" },
+      { name: "docgen", descKey: "commands.docgen" },
+      { name: "diff", descKey: "commands.diff" },
+      { name: "watch", descKey: "commands.watch" },
+    ],
+  },
+  {
+    group: "Management",
+    commands: [
+      { name: "marketplace", descKey: "commands.marketplace" },
+      { name: "profile", descKey: "commands.profile" },
+      { name: "artifacts", descKey: "commands.artifacts" },
+      { name: "plugin", descKey: "commands.plugin" },
+    ],
+  },
+  {
+    group: "System",
+    commands: [
+      { name: "migrate", descKey: "commands.migrate" },
+      { name: "doctor", descKey: "commands.doctor" },
+      { name: "mcp", descKey: "commands.mcp" },
+      { name: "version", descKey: "commands.version" },
+    ],
+  },
+];
+---
+
+<section class="py-24 border-t border-[#333]">
+  <div class="container-main">
+    <div class="text-center mb-16">
+      <h2 class="text-3xl md:text-4xl font-bold mb-4">{t("commands.title")}</h2>
+      <p class="text-[#888] text-lg max-w-2xl mx-auto">{t("commands.subtitle")}</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {cmdGroups.map((group) => (
+        <div class="glass p-6">
+          <h3 class="text-xs font-semibold text-[#00ff88] uppercase tracking-wider mb-4">{group.group}</h3>
+          <ul class="space-y-3">
+            {group.commands.map((cmd) => (
+              <li class="flex items-start gap-3">
+                <code class="text-xs font-mono text-[#66b3ff] shrink-0 bg-[#0a0a0a] px-1.5 py-0.5 rounded">
+                  {cmd.name}
+                </code>
+                <span class="text-xs text-[#888]">{t(cmd.descKey)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+
+    <p class="text-center text-sm text-[#666] mt-8">
+      + 20 more commands &middot; <code class="text-[#00ff88] font-mono text-xs">naeos --help</code> for full list
+    </p>
+  </div>
+</section>

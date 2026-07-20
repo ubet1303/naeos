@@ -1,0 +1,74 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+
+const lang = "en";
+
+const releases = [
+  { version: "2.1.0", date: "2026-07-20", highlight: "RBAC bootstrapping, multi-tenant workspaces, schema registry API, 5 new industry profiles, encryption at rest, compliance export CLI." },
+  { version: "1.5.0", date: "2026-07-19", highlight: "Production hardening — race detector passes cleanly, test coverage improvements." },
+  { version: "1.4.0", date: "2026-07-19", highlight: "Prompt Library (NES-054), observability dashboard with real data, workflow manager persistence, distributed workers." },
+  { version: "1.3.1", date: "2026-07-19", highlight: "999 lint issues resolved to 0 across 211 files — golangci-lint clean." },
+  { version: "1.3.0", date: "2026-07-16", highlight: "CLI --output json/yaml support for 14 commands, security scan, 39 new CLI integration tests." },
+  { version: "1.2.0", date: "2026-07-15", highlight: "Database layer with PostgreSQL, MySQL, SQLite — connection pools, retry logic, health checks." },
+  { version: "1.1.0", date: "2026-07-15", highlight: "Test coverage across 10 packages, WebSocket race fixes, interface{}→any migration." },
+  { version: "1.0.0", date: "2026-07-14", highlight: "Stable release — 65.4% test coverage, 32 API endpoint tests, security hardening." },
+  { version: "0.9.0", date: "2026-07-13", highlight: "Structured logging, RBAC, OAuth2, audit logging, GoReleaser, interactive TUI." },
+  { version: "0.8.0", date: "2026-07-13", highlight: "Typed error system, WebSocket server, MCP server foundation." },
+  { version: "0.7.0", date: "2026-07-13", highlight: "10 new CLI commands, event sourcing with aggregate snapshots." },
+  { version: "0.6.0", date: "2026-07-12", highlight: "Centralized version management, multi-tenant workspace foundation." },
+  { version: "0.5.1", date: "2026-07-12", highlight: "API handlers fully wired — specs, artifacts, MCP, pipeline status." },
+  { version: "0.5.0", date: "2026-07-12", highlight: "Cloud integration — AWS, GCP, Azure adapters + Terraform export." },
+  { version: "0.4.0", date: "2026-07-11", highlight: "Spec Language v2 enhancement, MCP server, migration engine, marketplace, benchmarks." },
+  { version: "0.3.0", date: "2026-07-11", highlight: "Spec Language v2 — variable interpolation, cross-references, file includes, custom functions." },
+  { version: "0.2.0", date: "2026-07-11", highlight: "Compiler foundation — 6 AI output adapters, artifact store, industry profiles." },
+  { version: "0.1.0", date: "2026-01-01", highlight: "Initial project structure — parser, NEIR model, pipeline, CLI foundation." },
+];
+---
+
+<PageLayout
+  lang={lang}
+  title="Changelog"
+  description="Version history of NAEOS — from v0.1.0 to v2.1.0."
+>
+  <div slot="header">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      <span class="gradient-text">Changelog</span>
+    </h1>
+    <p class="text-lg text-[#888] mb-12 max-w-2xl">
+      The complete version history of NAEOS. Built in 7 months from initial commit to production-ready v2.1.0.
+    </p>
+  </div>
+
+  <div class="container-main max-w-4xl mx-auto px-6">
+    <div class="relative">
+      <div class="absolute left-6 top-0 bottom-0 w-px bg-[#333]" />
+
+      <div class="space-y-6">
+        {releases.map(r => (
+          <div class="relative flex gap-6">
+            <div class="relative z-10 shrink-0">
+              <div class="w-12 h-12 rounded-full bg-[#1a1a1a] border-2 border-[#00ff88] flex items-center justify-center text-xs font-bold text-[#00ff88]">
+                v{r.version.split(".")[0]}
+              </div>
+            </div>
+            <div class="flex-1 glass p-5">
+              <div class="flex items-baseline gap-3 mb-2">
+                <span class="text-lg font-bold font-mono text-[#00ff88]">v{r.version}</span>
+                <span class="text-xs text-[#666]">{r.date}</span>
+                {r.version === "2.1.0" && <span class="text-[10px] font-medium text-[#00ff88] px-2 py-0.5 rounded-full bg-[#00ff88]15 border border-[#00ff88]">Latest</span>}
+                {r.version === "1.0.0" && <span class="text-[10px] font-medium text-[#ffaa00] px-2 py-0.5 rounded-full bg-[#ffaa00]15 border border-[#ffaa00]">Stable</span>}
+              </div>
+              <p class="text-sm text-[#888] leading-relaxed">{r.highlight}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="glass p-6 mt-8 text-center">
+      <p class="text-sm text-[#888]">
+        Full changelog available on <a href="https://github.com/NAEOS-foundation/naeos/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" class="text-[#00ff88] hover:underline">GitHub</a>
+      </p>
+    </div>
+  </div>
+</PageLayout>
