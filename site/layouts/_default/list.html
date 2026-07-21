@@ -19,7 +19,7 @@
 <section class="content-section">
     <div class="container">
         {{ .Content }}
-        <div class="blog-grid fade-in">
+        <div class="blog-grid stagger-fade">
             {{ range .Pages }}
             <article class="blog-card">
                 <div class="blog-date">{{ .Date | time.Format "January 2, 2006" }}</div>
