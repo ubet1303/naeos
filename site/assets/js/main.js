@@ -295,8 +295,25 @@ function toggleTheme() {
   var root = document.documentElement;
   var current = root.getAttribute('data-theme');
   var next = current === 'dark' ? 'light' : 'dark';
+  root.classList.add('theme-transitioning');
   root.setAttribute('data-theme', next);
   localStorage.setItem('theme', next);
+  setTimeout(function () { root.classList.remove('theme-transitioning'); }, 400);
+}
+
+function switchTab(btn, tabId) {
+  var container = btn.closest('.tab-container');
+  if (!container) return;
+  var tabs = container.querySelectorAll('.tab-item');
+  tabs.forEach(function (t) { t.classList.remove('active'); });
+  btn.classList.add('active');
+  var panels = container.querySelectorAll('.tab-content');
+  panels.forEach(function (p) {
+    var pid = p.getAttribute('id');
+    var target = tabId + '-panel';
+    if (pid === target) { p.classList.add('active'); }
+    else { p.classList.remove('active'); }
+  });
 }
 
 var searchData = null;
@@ -332,6 +349,16 @@ function closeSearch() {
   selectedIndex = -1;
 }
 
+function getRecentSearches() {
+  try { return JSON.parse(localStorage.getItem('recent-searches') || '[]'); } catch (e) { return []; }
+}
+function saveRecentSearch(query) {
+  var searches = getRecentSearches().filter(function (s) { return s !== query; });
+  searches.unshift(query);
+  if (searches.length > 5) searches = searches.slice(0, 5);
+  localStorage.setItem('recent-searches', JSON.stringify(searches));
+}
+
 function initSearch() {
   searchOverlay = document.getElementById('search-overlay');
   searchModal = document.getElementById('search-modal');
@@ -360,6 +387,27 @@ function initSearch() {
   });
 
   searchInput.addEventListener('input', function () { performSearch(searchInput.value); });
+
+  searchInput.addEventListener('focus', function () {
+    if (!this.value.trim()) showRecentSearches();
+  });
+}
+
+function showRecentSearches() {
+  if (!searchResults) return;
+  var recent = getRecentSearches();
+  if (!recent.length) {
+    searchResults.innerHTML = '<div class="search-hint">' + (window.SEARCH_PLACEHOLDER || 'Type to search') + '</div>';
+    return;
+  }
+  var html = '<div class="search-recent-header">Recent searches</div>';
+  recent.forEach(function (q) {
+    html += '<button class="search-recent-item" onclick="document.getElementById(\'search-input\').value=\'' + escapeHtml(q) + '\';performSearch(\'' + escapeHtml(q) + '\');this.focus();">';
+    html += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    html += escapeHtml(q);
+    html += '</button>';
+  });
+  searchResults.innerHTML = html;
 }
 
 function loadSearchIndex() {
@@ -383,12 +431,23 @@ function loadSearchIndex() {
     .catch(function () {});
 }
 
+function highlightMatches(text, query) {
+  if (!query || !text) return escapeHtml(text);
+  var escaped = escapeHtml(text);
+  var words = query.trim().split(/\s+/).filter(function (w) { return w.length > 0; });
+  words.forEach(function (word) {
+    var re = new RegExp('(' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    escaped = escaped.replace(re, '<mark>$1</mark>');
+  });
+  return escaped;
+}
+
 function performSearch(query) {
   if (!searchResults) return;
   var hint = document.querySelector('.search-hint');
   if (!query.trim()) {
     if (hint) hint.style.display = 'block';
-    searchResults.innerHTML = '';
+    showRecentSearches();
     selectedIndex = -1;
     return;
   }
@@ -405,24 +464,43 @@ function performSearch(query) {
   }
   selectedIndex = -1;
   if (results.length === 0) {
-    searchResults.innerHTML = '<div class="search-hint">' + SEARCH_NO_RESULTS + '</div>';
+    searchResults.innerHTML = '<div class="search-empty">' +
+      '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-dim)" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="8" y1="11" x2="14" y2="11"/></svg>' +
+      '<div class="search-empty-title">' + SEARCH_NO_RESULTS + '</div>' +
+      '<div class="search-empty-hint">Try different keywords or browse the documentation.</div>' +
+      '</div>';
     return;
   }
-  var html = '';
+  saveRecentSearch(query);
   var maxResults = 20;
+  var categories = {};
   for (var i = 0; i < Math.min(results.length, maxResults); i++) {
     var r = results[i];
     var item = r.item || r;
-    var title = item.title || '';
-    var section = item.section || '';
-    var url = item.permalink || item.url || '#';
-    var excerpt = item.content ? item.content.substring(0, 120) : '';
-    html += '<a href="' + url + '" class="search-result-item" data-index="' + i + '">';
-    html += '  <div class="result-title">' + escapeHtml(title) + '</div>';
-    if (section) html += '  <div class="result-section">' + escapeHtml(section) + '</div>';
-    if (excerpt) html += '  <div class="result-excerpt">' + escapeHtml(excerpt) + '</div>';
-    html += '</a>';
+    var section = item.section || 'General';
+    if (!categories[section]) categories[section] = [];
+    categories[section].push({ item: item, r: r, i: i });
   }
+  var html = '';
+  var globalIndex = 0;
+  var catKeys = Object.keys(categories);
+  catKeys.sort();
+  catKeys.forEach(function (cat) {
+    html += '<div class="search-category-header">' + escapeHtml(cat) + '</div>';
+    categories[cat].forEach(function (entry) {
+      var item = entry.item;
+      var title = item.title || '';
+      var section = item.section || '';
+      var url = item.permalink || item.url || '#';
+      var excerpt = item.content ? item.content.substring(0, 120) : '';
+      html += '<a href="' + url + '" class="search-result-item" data-index="' + globalIndex + '">';
+      html += '  <div class="result-title">' + highlightMatches(title, query) + '</div>';
+      if (section) html += '  <div class="result-section">' + escapeHtml(section) + '</div>';
+      if (excerpt) html += '  <div class="result-excerpt">' + highlightMatches(excerpt, query) + '</div>';
+      html += '</a>';
+      globalIndex++;
+    });
+  });
   searchResults.innerHTML = html;
   var items = searchResults.querySelectorAll('.search-result-item');
   items.forEach(function (item) {
