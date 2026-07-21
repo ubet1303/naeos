@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', function () {
   initPageTransitions();
   initDocsDrawer();
   initTocScrollspy();
+  initSyntaxLabels();
 });
 
 function toggleMobileMenu(force) {
@@ -842,5 +843,12 @@ function initTocScrollspy() {
 
   headings.forEach(function (h) {
     if (h.id) observer.observe(h);
+  });
+}
+
+function initSyntaxLabels() {
+  document.querySelectorAll('.highlight code[data-lang]').forEach(function (code) {
+    var highlight = code.closest('.highlight');
+    if (highlight) highlight.dataset.lang = code.dataset.lang;
   });
 }
