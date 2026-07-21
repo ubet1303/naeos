@@ -11,10 +11,13 @@ Selamat datang di dokumentasi NAEOS. Di sini Anda akan menemukan semua yang dipe
 - **[Instalasi](/id/docs/installation/)** — Petunjuk instalasi terperinci untuk semua platform
 - **[Referensi CLI](/id/docs/cli-reference/)** — Referensi perintah lengkap untuk 35+ perintah CLI
 - **[Arsitektur](/id/docs/architecture/)** — Penjelasan mendalam tentang arsitektur NAEOS
+- **[Bahasa Spesifikasi](/id/docs/spec-language/)** — Sintaks dan fitur Bahasa Spesifikasi NAEOS v2
+- **[Pipeline Engine](/id/docs/pipeline-engine/)** — Pipeline DAG 9-tahap dari parsing hingga ekspor
+- **[Model NEIR](/id/docs/neir-model/)** — Representasi Antara Rekayasa NAEOS yang kanonikal
+- **[Kompiler AI](/id/docs/ai-compiler/)** — Kompilasi NEIR ke set instruksi AI untuk 6 platform
+- **[Plugin SDK](/id/docs/plugin-sdk/)** — Perluas NAEOS dengan plugin dan generator kustom
 
 ## Sumber Daya Eksternal
 
-- [Wiki Dokumentasi Lengkap](https://github.com/NAEOS-foundation/naeos/wiki) — 19 halaman dokumentasi komprehensif
 - [Repositori GitHub](https://github.com/NAEOS-foundation/naeos) — Kode sumber dan isu
 - [Referensi API](https://github.com/NAEOS-foundation/naeos/blob/main/docs/openapi.yaml) — Spesifikasi OpenAPI 3.0
-- [Spesifikasi](https://github.com/NAEOS-foundation/naeos/tree/main/specification) — Dokumen spesifikasi NAEOS
