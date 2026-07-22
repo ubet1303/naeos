@@ -19,7 +19,7 @@
 | Blog content pipeline | Site | GitHub Action: detect release tag → auto-create blog post dari changelog |
 | Interactive playground ✅ | Site | xterm.js + WebSocket ke server demo di homepage. Hero terminal interaktif, fallback ke animasi statis. Demo server di `cmd/naeos-demo/` |
 | PDF generation ✅ | Site | CLI reference + getting-started sebagai PDF download via GitHub Action (`pdf-docs.yml`). Tersedia di `/downloads/` |
-| Dark mode OG image | Site | Generate PNG OG image yang sesuai dark theme + light theme |
+| Dark mode OG image ✅ | Site | SVG OG image dengan `prefers-color-scheme` CSS + PNG fallback (dark & light) via sharp. Tersedia di `/images/og-default.svg` |
 
 ## Fase 3: Platform & Ekosistem
 
