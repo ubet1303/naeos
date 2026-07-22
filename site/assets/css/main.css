@@ -715,7 +715,8 @@ h4 { font-size: var(--font-size-base); }
 .use-cases-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
 .use-case-card { background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1.75rem; transition: all var(--transition-base); }
 .use-case-card:hover { border-color: var(--color-accent); transform: translateY(-2px); }
-.use-case-card .use-case-icon { font-size: 2rem; margin-bottom: 0.75rem; display: block; }
+.use-case-card .use-case-icon { width: 2.5rem; height: 2.5rem; margin-bottom: 0.9rem; display: grid; place-items: center; color: var(--color-accent); background: var(--color-accent-glow); border: 1px solid rgba(0,255,136,0.18); border-radius: var(--radius-md); }
+.use-case-card .use-case-icon svg { width: 1.55rem; height: 1.55rem; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .use-case-card h3 { font-size: var(--font-size-lg); margin-bottom: 0.5rem; }
 .use-case-card p { color: var(--color-text-muted); font-size: var(--font-size-base); line-height: 1.7; }
 .use-case-card .badge { margin-top: 0.75rem; display: inline-flex; }
