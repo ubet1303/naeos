@@ -38,6 +38,17 @@
         var SEARCH_INDEX_URL = '{{ "index.json" | absURL }}';
         var SEARCH_PLACEHOLDER = '{{ i18n "search_placeholder" }}';
         var SEARCH_NO_RESULTS = '{{ i18n "search_no_results" }}';
+        var PLAYGROUND_I18N = {
+            preview: {{ i18n "home_playground_preview" | jsonify }},
+            modules: {{ i18n "home_playground_modules" | jsonify }},
+            services: {{ i18n "home_playground_services" | jsonify }},
+            dependencies: {{ i18n "home_playground_dependencies" | jsonify }},
+            languages: {{ i18n "home_playground_languages" | jsonify }},
+            project: {{ i18n "home_playground_project" | jsonify }},
+            generation: {{ i18n "home_playground_generation" | jsonify }},
+            unnamed: {{ i18n "home_playground_unnamed" | jsonify }},
+            invalidYaml: {{ i18n "home_playground_invalid_yaml" | jsonify }}
+        };
     </script>
     {{ $js := resources.Get "js/main.js" | resources.Minify | resources.Fingerprint "sha256" }}
     <script src="{{ $js.RelPermalink }}" integrity="{{ $js.Data.Integrity }}" defer></script>

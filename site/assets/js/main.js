@@ -312,7 +312,8 @@ function updatePlaygroundPreview() {
   if (!input || !output) return;
   var text = input.value;
 
-  var html = '<h4>NEIR Model Preview</h4>';
+  var labels = window.PLAYGROUND_I18N || {};
+  var html = '<h4>' + escapeHtml(labels.preview || 'NEIR Model Preview') + '</h4>';
 
   try {
     var spec = parseYAML(text);
@@ -323,15 +324,15 @@ function updatePlaygroundPreview() {
     var deps = countDeps(modules);
 
     html += '<div class="playground-stats">';
-    html += '<div class="playground-stat"><span class="playground-stat-num">' + (modules.length || 0) + '</span><span class="playground-stat-label">Modules</span></div>';
-    html += '<div class="playground-stat"><span class="playground-stat-num">' + (services.length || 0) + '</span><span class="playground-stat-label">Services</span></div>';
-    html += '<div class="playground-stat"><span class="playground-stat-num">' + deps + '</span><span class="playground-stat-label">Dependencies</span></div>';
-    html += '<div class="playground-stat"><span class="playground-stat-num">' + (Array.isArray(gen.languages) ? gen.languages.length : 0) + '</span><span class="playground-stat-label">Languages</span></div>';
+    html += '<div class="playground-stat"><span class="playground-stat-num">' + (modules.length || 0) + '</span><span class="playground-stat-label">' + escapeHtml(labels.modules || 'Modules') + '</span></div>';
+    html += '<div class="playground-stat"><span class="playground-stat-num">' + (services.length || 0) + '</span><span class="playground-stat-label">' + escapeHtml(labels.services || 'Services') + '</span></div>';
+    html += '<div class="playground-stat"><span class="playground-stat-num">' + deps + '</span><span class="playground-stat-label">' + escapeHtml(labels.dependencies || 'Dependencies') + '</span></div>';
+    html += '<div class="playground-stat"><span class="playground-stat-num">' + (Array.isArray(gen.languages) ? gen.languages.length : 0) + '</span><span class="playground-stat-label">' + escapeHtml(labels.languages || 'Languages') + '</span></div>';
     html += '</div>';
 
     if (spec.project) {
       html += '<div class="playground-tree-section">';
-      html += '<div class="playground-tree-header">Project</div>';
+      html += '<div class="playground-tree-header">' + escapeHtml(labels.project || 'Project') + '</div>';
       html += '<div class="tree-node"><span class="tree-key">name:</span> <span class="tree-str">' + escapeHtml(String(spec.project)) + '</span></div>';
       if (spec.version) html += '<div class="tree-node"><span class="tree-key">version:</span> <span class="tree-str">' + escapeHtml(String(spec.version)) + '</span></div>';
       if (arch.pattern) html += '<div class="tree-node"><span class="tree-key">pattern:</span> <span class="tree-val">' + escapeHtml(String(arch.pattern)) + '</span></div>';
@@ -340,10 +341,10 @@ function updatePlaygroundPreview() {
 
     if (modules.length) {
       html += '<div class="playground-tree-section">';
-      html += '<div class="playground-tree-header">Modules</div>';
+      html += '<div class="playground-tree-header">' + escapeHtml(labels.modules || 'Modules') + '</div>';
       modules.forEach(function (m) {
         if (typeof m === 'object' && m !== null) {
-          var name = m.name || '(unnamed)';
+          var name = m.name || '(' + (labels.unnamed || 'unnamed') + ')';
           var depsList = (m.dependencies && Array.isArray(m.dependencies)) ? m.dependencies.join(', ') : 'none';
           html += '<div class="tree-node"><span class="tree-key">' + escapeHtml(name) + '</span>';
           if (m.path) html += ' <span class="tree-dim">' + escapeHtml(m.path) + '</span>';
@@ -358,10 +359,10 @@ function updatePlaygroundPreview() {
 
     if (services.length) {
       html += '<div class="playground-tree-section">';
-      html += '<div class="playground-tree-header">Services</div>';
+      html += '<div class="playground-tree-header">' + escapeHtml(labels.services || 'Services') + '</div>';
       services.forEach(function (s) {
         if (typeof s === 'object' && s !== null) {
-          var sname = s.name || '(unnamed)';
+          var sname = s.name || '(' + (labels.unnamed || 'unnamed') + ')';
           var kind = s.kind || 'unknown';
           var port = s.port ? ':' + s.port : '';
           var kindColors = { rest: '#60a5fa', grpc: '#a78bfa', websocket: '#34d399', lambda: '#fbbf24', 'reverse-proxy': '#f87171', http: '#60a5fa', worker: '#fb923c' };
@@ -376,14 +377,14 @@ function updatePlaygroundPreview() {
 
     if (Array.isArray(gen.languages) && gen.languages.length) {
       html += '<div class="playground-tree-section">';
-      html += '<div class="playground-tree-header">Generation</div>';
+      html += '<div class="playground-tree-header">' + escapeHtml(labels.generation || 'Generation') + '</div>';
       html += '<div class="tree-node"><span class="tree-key">languages:</span> <span class="tree-str">' + escapeHtml(gen.languages.join(', ')) + '</span></div>';
       if (gen.output_dir) html += '<div class="tree-node"><span class="tree-key">output:</span> <span class="tree-str">' + escapeHtml(gen.output_dir) + '</span></div>';
       html += '</div>';
     }
 
   } catch (e) {
-    html += '<div class="playground-error">Invalid YAML: ' + escapeHtml(e.message) + '</div>';
+    html += '<div class="playground-error">' + escapeHtml(labels.invalidYaml || 'Invalid YAML') + ': ' + escapeHtml(e.message) + '</div>';
   }
 
   output.innerHTML = html;
