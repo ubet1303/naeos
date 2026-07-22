@@ -240,7 +240,7 @@ func (m *Manager) Unregister(name string) error {
 	defer m.mu.Unlock()
 
 	if _, exists := m.plugins[name]; !exists {
-		return fmt.Errorf("plugin %q not found in memory; it may not be loaded", name)
+		return fmt.Errorf("plugin %q not found in memory; check 'naeos plugin list' and verify it is loaded", name)
 	}
 
 	delete(m.plugins, name)
@@ -357,10 +357,10 @@ func (m *Manager) Execute(ctx context.Context, name, action string, params map[s
 			}
 			p, ok = m.Get(name)
 			if !ok {
-				return nil, fmt.Errorf("plugin %s not loaded", name)
+				return nil, fmt.Errorf("plugin %q not loaded; check plugin paths and rebuild if needed", name)
 			}
 		} else {
-			return nil, fmt.Errorf("plugin %s not loaded", name)
+			return nil, fmt.Errorf("plugin %q not loaded; enable lazy loading or run 'naeos plugin load %s'", name, name)
 		}
 	}
 	if err := m.sandbox.CheckRateLimit(name); err != nil {
@@ -399,18 +399,18 @@ func (m *Manager) lazyLoad(name string, ctx *PluginContext) error {
 			}
 			pInfo := &m.config.Plugins[i]
 			if !pInfo.Enabled || pInfo.Path == "" {
-				return fmt.Errorf("plugin %s is disabled or has no path", name)
+				return fmt.Errorf("plugin %q is disabled or has no path; enable it with 'naeos plugin enable %s'", name, name)
 			}
 			if err := m.sandbox.ValidatePath(pInfo.Path); err != nil {
-				return fmt.Errorf("sandbox validation failed: %w", err)
+				return fmt.Errorf("sandbox validation failed for plugin %q: %w", name, err)
 			}
 			p, err := m.loadGoPlugin(pInfo.Path)
 			if err != nil {
-				return fmt.Errorf("load failed: %w", err)
+				return fmt.Errorf("load plugin %q: %w", name, err)
 			}
 			if err := p.Initialize(ctx); err != nil {
 				m.updateStateLocked(name, StateError, err)
-				return fmt.Errorf("init failed: %w", err)
+				return fmt.Errorf("init plugin %q: %w", name, err)
 			}
 			m.plugins[name] = p
 			pInfo.Loaded = true
@@ -418,7 +418,7 @@ func (m *Manager) lazyLoad(name string, ctx *PluginContext) error {
 			return m.SaveConfig()
 		}
 	}
-	return fmt.Errorf("plugin %s not found", name)
+	return fmt.Errorf("plugin %q not found; run 'naeos plugin list' to see installed plugins", name)
 }
 
 // Cleanup calls Shutdown on all loaded plugins and releases resources.

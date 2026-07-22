@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	naeoserr "github.com/NAEOS-foundation/naeos/internal/errors"
 )
 
 const brokerConfigDir = ".config/naeos"
@@ -92,7 +94,7 @@ func (s *ConnectionStore) Remove(name string) error {
 			return s.save()
 		}
 	}
-	return fmt.Errorf("broker connection %q not found", name)
+	return naeoserr.New(naeoserr.ErrNotFound, fmt.Sprintf("broker connection %q", name))
 }
 
 func (s *ConnectionStore) Get(name string) (*SavedBroker, error) {
