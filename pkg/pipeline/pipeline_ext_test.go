@@ -24,7 +24,7 @@ func (c *stubCache) HashSpec(spec string) string {
 	return "hash-" + spec
 }
 
-func TestPipelineCacheHit(t *testing.T) {
+func TestPipelineCacheHitWithRun(t *testing.T) {
 	t.Parallel()
 	cache := &stubCache{store: make(map[string]*Result)}
 	p, err := New(Config{Cache: cache})
