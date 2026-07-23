@@ -185,7 +185,7 @@ func (m *Manager) Uninstall(name string) error {
 			return m.SaveConfig()
 		}
 	}
-	return 	naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %q not found", name), nil)
+	return naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %q not found", name), nil)
 }
 
 // Enable enables a plugin by name.
@@ -199,7 +199,7 @@ func (m *Manager) Enable(name string) error {
 			return m.SaveConfig()
 		}
 	}
-	return 	naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %q not found", name), nil)
+	return naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %q not found", name), nil)
 }
 
 // Disable disables a plugin by name.
@@ -213,7 +213,7 @@ func (m *Manager) Disable(name string) error {
 			return m.SaveConfig()
 		}
 	}
-	return 	naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %q not found", name), nil)
+	return naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %q not found", name), nil)
 }
 
 // Register registers a plugin in-memory (for in-process plugins).
@@ -241,8 +241,7 @@ func (m *Manager) Unregister(name string) error {
 	defer m.mu.Unlock()
 
 	if _, exists := m.plugins[name]; !exists {
-		return fmt.Errorf("plugin %q not found in memory; check 'naeos plugin list' and verify it is loaded", name)
-		return 	naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %q not found in memory", name), nil)
+		return naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %q not found in memory", name), nil)
 	}
 
 	delete(m.plugins, name)
@@ -363,15 +362,11 @@ func (m *Manager) Execute(ctx context.Context, name, action string, params map[s
 			}
 			p, ok = m.Get(name)
 			if !ok {
-				return nil, fmt.Errorf("plugin %q not loaded; check plugin paths and rebuild if needed", name)
+				return nil, naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %s not loaded after lazy load", name), nil)
 			}
 		} else {
-			return nil, fmt.Errorf("plugin %q not loaded; enable lazy loading or run 'naeos plugin load %s'", name, name)
-		return nil, 	naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %s not loaded after lazy load", name), nil)
+			return nil, naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %s not loaded", name), nil)
 		}
-	} else {
-		return nil, 	naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %s not loaded", name), nil)
-	}
 	}
 	if err := m.sandbox.CheckRateLimit(name); err != nil {
 		return nil, err
@@ -409,7 +404,6 @@ func (m *Manager) lazyLoad(name string, ctx *PluginContext) error {
 			}
 			pInfo := &m.config.Plugins[i]
 			if !pInfo.Enabled || pInfo.Path == "" {
-				return fmt.Errorf("plugin %q is disabled or has no path; enable it with 'naeos plugin enable %s'", name, name)
 				return naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %s is disabled or has no path", name), nil)
 			}
 			if err := m.sandbox.ValidatePath(pInfo.Path); err != nil {
@@ -421,7 +415,6 @@ func (m *Manager) lazyLoad(name string, ctx *PluginContext) error {
 			}
 			if err := p.Initialize(ctx); err != nil {
 				m.updateStateLocked(name, StateError, err)
-				return fmt.Errorf("init plugin %q: %w", name, err)
 				return naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("init plugin %s", name), err)
 			}
 			m.plugins[name] = p
@@ -430,8 +423,7 @@ func (m *Manager) lazyLoad(name string, ctx *PluginContext) error {
 			return m.SaveConfig()
 		}
 	}
-	return fmt.Errorf("plugin %q not found; run 'naeos plugin list' to see installed plugins", name)
-	return 	naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %s not found", name), nil)
+	return naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %s not found", name), nil)
 }
 
 // Cleanup calls Shutdown on all loaded plugins and releases resources.
