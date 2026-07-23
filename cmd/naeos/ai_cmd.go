@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/NAEOS-foundation/naeos/internal/ai"
+	"github.com/NAEOS-foundation/naeos/internal/knowledge/graph"
 )
 
 func newAICommand() *cobra.Command {
@@ -58,6 +59,19 @@ Example:
 			suggestions, err := svc.Suggest(string(data))
 			if err != nil {
 				return err
+			}
+
+			kg, err := graph.BuildFromSpec(string(data))
+			if err == nil {
+				kgSuggestions := graph.AnalyzeSpecGraph(kg)
+				for _, ks := range kgSuggestions {
+					suggestions = append(suggestions, ai.Suggestion{
+						Category:    ks.Category,
+						Title:       ks.Title,
+						Description: ks.Description,
+						Priority:    ks.Priority,
+					})
+				}
 			}
 
 			for _, s := range suggestions {

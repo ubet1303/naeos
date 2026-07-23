@@ -1,0 +1,66 @@
+{
+  "scopeName": "source.naeos-spec",
+  "name": "NAEOS Specification",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#keywords" },
+    { "include": "#values" },
+    { "include": "#strings" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.naeos-spec",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.naeos-spec",
+          "match": "^\\s*(project|modules|services|architecture|deployment|testing|generation|endpoints|dependencies|security):"
+        },
+        {
+          "name": "support.type.property-name.naeos-spec",
+          "match": "^\\s*(name|path|kind|port|method|action|pattern|strategy|description|coverage|languages|version|principles):"
+        },
+        {
+          "name": "constant.language.naeos-spec",
+          "match": "\\b(http|grpc|worker|event|graphql|hexagonal|clean|layered|event-driven|microservices|modular-monolith|blue-green|canary|rolling|recreate|go|typescript|python|java|rust)\\b"
+        },
+        {
+          "name": "constant.language.http-method.naeos-spec",
+          "match": "\\b(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\\b"
+        }
+      ]
+    },
+    "values": {
+      "patterns": [
+        {
+          "name": "constant.numeric.port.naeos-spec",
+          "match": "(:\\s*)\\b(\\d{1,5})\\b"
+        },
+        {
+          "name": "entity.name.tag.module-ref.naeos-spec",
+          "match": "-\\s+\\w+"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.naeos-spec",
+          "begin": "\"",
+          "end": "\""
+        },
+        {
+          "name": "string.quoted.single.naeos-spec",
+          "begin": "'",
+          "end": "'"
+        }
+      ]
+    }
+  }
+}

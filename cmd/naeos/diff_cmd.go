@@ -22,7 +22,8 @@ func newDiffCommand() *cobra.Command {
 Example:
   naeos diff --config config.yaml --input spec.yaml
   naeos diff --config config.yaml --input spec.yaml --output-dir ./out
-  naeos diff --config config.yaml --input spec.yaml --format unified`,
+  naeos diff --config config.yaml --input spec.yaml --format unified
+  naeos diff --config config.yaml --input spec.yaml --format html`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if input == "" && inputFile == "" {
@@ -69,12 +70,21 @@ Example:
 			}
 
 			for _, d := range diffs {
-				fmt.Fprint(cmd.OutOrStdout(), diff.FormatDiff(d))
+				if format == "html" {
+					fmt.Fprint(cmd.OutOrStdout(), diff.FormatDiffHTML(d))
+				} else {
+					fmt.Fprint(cmd.OutOrStdout(), diff.FormatDiff(d))
+				}
 			}
 
 			added, removed, modified, unchanged := diff.Summary(diffs)
-			fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d added, %d removed, %d modified, %d unchanged\n",
-				added, removed, modified, unchanged)
+			if format == "html" {
+				fmt.Fprintf(cmd.OutOrStdout(), "<div class=\"summary\">%d added, %d removed, %d modified, %d unchanged</div>\n",
+					added, removed, modified, unchanged)
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d added, %d removed, %d modified, %d unchanged\n",
+					added, removed, modified, unchanged)
+			}
 			return nil
 		},
 	}
@@ -83,6 +93,6 @@ Example:
 	cmd.Flags().StringVar(&input, "input", "", "specification input to process")
 	cmd.Flags().StringVar(&inputFile, "input-file", "", "path to a specification file")
 	cmd.Flags().StringVar(&outputDir, "output-dir", "", "existing output directory to compare against")
-	cmd.Flags().StringVar(&format, "format", "unified", "diff format: unified")
+	cmd.Flags().StringVar(&format, "format", "unified", "diff format: unified, html")
 	return cmd
 }

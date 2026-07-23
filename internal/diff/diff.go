@@ -361,6 +361,64 @@ func Summary(diffs []*FileDiff) (added, removed, modified, unchanged int) {
 	return
 }
 
+func FormatDiffHTML(diff *FileDiff) string {
+	if diff == nil {
+		return ""
+	}
+	var sb strings.Builder
+
+	switch diff.Type {
+	case ChangeAdded:
+		fmt.Fprintf(&sb, "<div class=\"file added\"><h3>+++ %s (added)</h3>\n", diff.Path)
+	case ChangeRemoved:
+		fmt.Fprintf(&sb, "<div class=\"file removed\"><h3>--- %s (removed)</h3>\n", diff.Path)
+	case ChangeUnchanged:
+		fmt.Fprintf(&sb, "<div class=\"file unchanged\"><h3>%s (unchanged)</h3></div>\n", diff.Path)
+		return sb.String()
+	case ChangeModified:
+		fmt.Fprintf(&sb, "<div class=\"file modified\"><h3>~~~ %s (modified: %d → %d bytes)</h3>\n", diff.Path, diff.OldSize, diff.NewSize)
+	}
+
+	sb.WriteString("<pre>")
+	for _, line := range diff.Lines {
+		switch line.Type {
+		case ChangeAdded:
+			fmt.Fprintf(&sb, "<span class=\"added\">+ %s</span>\n", line.Content)
+		case ChangeRemoved:
+			fmt.Fprintf(&sb, "<span class=\"removed\">- %s</span>\n", line.Content)
+		default:
+			fmt.Fprintf(&sb, "  %s\n", line.Content)
+		}
+	}
+	sb.WriteString("</pre></div>\n")
+	return sb.String()
+}
+
+func FormatDiffHTMLFull(diffs []*FileDiff) string {
+	var sb strings.Builder
+	sb.WriteString("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>NEIR Diff</title>\n<style>\n")
+	sb.WriteString("body { font-family: monospace; background: #1e1e2e; color: #cdd6f4; padding: 2rem; }\n")
+	sb.WriteString("h1 { color: #89b4fa; }\n")
+	sb.WriteString("h3 { margin: 0.5rem 0; }\n")
+	sb.WriteString(".file { margin-bottom: 1.5rem; border: 1px solid #45475a; border-radius: 6px; padding: 1rem; }\n")
+	sb.WriteString(".file.added { border-color: #a6e3a1; }\n")
+	sb.WriteString(".file.removed { border-color: #f38ba8; }\n")
+	sb.WriteString(".file.modified { border-color: #f9e2af; }\n")
+	sb.WriteString(".file.unchanged { border-color: #585b70; opacity: 0.7; }\n")
+	sb.WriteString("pre { margin: 0; white-space: pre-wrap; }\n")
+	sb.WriteString(".added { color: #a6e3a1; }\n")
+	sb.WriteString(".removed { color: #f38ba8; }\n")
+	sb.WriteString(".summary { margin-top: 2rem; font-size: 1.1rem; }\n")
+	sb.WriteString("</style>\n</head>\n<body>\n<h1>NEIR Diff</h1>\n")
+	added, removed, modified, unchanged := Summary(diffs)
+	for _, d := range diffs {
+		sb.WriteString(FormatDiffHTML(d))
+	}
+	fmt.Fprintf(&sb, "<div class=\"summary\">%d added, %d removed, %d modified, %d unchanged</div>\n", added, removed, modified, unchanged)
+	sb.WriteString("</body>\n</html>\n")
+	return sb.String()
+}
+
 func ApplyPatch(original string, diff *FileDiff) string {
 	if diff == nil {
 		return original
