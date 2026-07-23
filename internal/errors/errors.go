@@ -10,22 +10,23 @@ import (
 type ErrorCode string
 
 const (
-	ErrParse      ErrorCode = "PARSE_ERROR"
-	ErrValidation ErrorCode = "VALIDATION_ERROR"
-	ErrCloud      ErrorCode = "CLOUD_ERROR"
-	ErrPlugin     ErrorCode = "PLUGIN_ERROR"
-	ErrAuth       ErrorCode = "AUTH_ERROR"
-	ErrPipeline   ErrorCode = "PIPELINE_ERROR"
-	ErrConfig     ErrorCode = "CONFIG_ERROR"
-	ErrDatabase   ErrorCode = "DATABASE_ERROR"
-	ErrNetwork    ErrorCode = "NETWORK_ERROR"
-	ErrInternal   ErrorCode = "INTERNAL_ERROR"
-	ErrNotFound   ErrorCode = "NOT_FOUND"
-	ErrConflict   ErrorCode = "CONFLICT"
-	ErrTimeout    ErrorCode = "TIMEOUT"
-	ErrRateLimit  ErrorCode = "RATE_LIMIT"
-	ErrPermDenied ErrorCode = "PERMISSION_DENIED"
-	ErrCanceled   ErrorCode = "CANCELED"
+	ErrParse                 ErrorCode = "PARSE_ERROR"
+	ErrValidation            ErrorCode = "VALIDATION_ERROR"
+	ErrCloud                 ErrorCode = "CLOUD_ERROR"
+	ErrPlugin                ErrorCode = "PLUGIN_ERROR"
+	ErrAuth                  ErrorCode = "AUTH_ERROR"
+	ErrPipeline              ErrorCode = "PIPELINE_ERROR"
+	ErrConfig                ErrorCode = "CONFIG_ERROR"
+	ErrDatabase              ErrorCode = "DATABASE_ERROR"
+	ErrNetwork               ErrorCode = "NETWORK_ERROR"
+	ErrInternal              ErrorCode = "INTERNAL_ERROR"
+	ErrNotFound              ErrorCode = "NOT_FOUND"
+	ErrConflict              ErrorCode = "CONFLICT"
+	ErrTimeout               ErrorCode = "TIMEOUT"
+	ErrRateLimit             ErrorCode = "RATE_LIMIT"
+	ErrPermDenied            ErrorCode = "PERMISSION_DENIED"
+	ErrCanceled              ErrorCode = "CANCELED"
+	ErrFeatureNotImplemented ErrorCode = "NOT_IMPLEMENTED"
 )
 
 type StackFrame struct {
@@ -279,17 +280,18 @@ func (g *ErrorGroup) Empty() bool {
 }
 
 var (
-	ErrNotConnected    = New(ErrNetwork, "not connected")
-	ErrInvalidSpec     = New(ErrValidation, "invalid spec")
-	ErrPluginNotFound  = New(ErrPlugin, "plugin not found")
-	ErrDeployFailed    = New(ErrCloud, "deploy failed")
-	ErrTimedOut        = New(ErrTimeout, "operation timed out")
-	ErrRateLimited     = New(ErrRateLimit, "rate limited")
-	ErrUnauthorized    = New(ErrAuth, "unauthorized")
-	ErrForbidden       = New(ErrPermDenied, "forbidden")
-	ErrAlreadyExists   = New(ErrConflict, "resource already exists")
-	ErrInvalidConfig   = New(ErrConfig, "invalid configuration")
-	ErrInternalFailed  = New(ErrInternal, "internal error")
-	ErrNotImplemented  = New(ErrInternal, "not implemented")
-	ErrDependencyCycle = New(ErrPipeline, "dependency cycle detected")
+	ErrNotConnected     = New(ErrNetwork, "unable to connect to the remote host; check network connectivity and host configuration")
+	ErrInvalidSpec      = New(ErrValidation, "invalid specification; verify the input file format and required fields")
+	ErrPluginNotFound   = New(ErrPlugin, "plugin not found; ensure the plugin is installed and the name is correct")
+	ErrDeployFailed     = New(ErrCloud, "cloud deployment failed; check provider status and deployment logs for details")
+	ErrTimedOut         = New(ErrTimeout, "operation timed out; increase the timeout value or check service availability").WithRetry()
+	ErrRateLimited      = New(ErrRateLimit, "rate limit exceeded; wait before retrying or reduce request frequency").WithRetry()
+	ErrUnauthorized     = New(ErrAuth, "authentication failed; verify credentials or re-authenticate")
+	ErrForbidden        = New(ErrPermDenied, "access denied; the required permission is not granted for this resource")
+	ErrAlreadyExists    = New(ErrConflict, "resource already exists; use a different name or delete the existing resource")
+	ErrInvalidConfig    = New(ErrConfig, "invalid configuration; check the config file for missing or incorrect values")
+	ErrInternalFailed   = New(ErrInternal, "internal error; please report this issue with the stack trace")
+	ErrNotImplemented   = New(ErrFeatureNotImplemented, "feature not implemented; check the documentation for supported features")
+	ErrDependencyCycle  = New(ErrPipeline, "dependency cycle detected; review module dependencies and remove circular references")
+	ErrNotFoundSentinel = New(ErrNotFound, "resource not found; verify the resource name and ensure it exists")
 )

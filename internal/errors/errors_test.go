@@ -195,8 +195,9 @@ func TestSentinelErrors(t *testing.T) {
 		{ErrAlreadyExists, ErrConflict},
 		{ErrInvalidConfig, ErrConfig},
 		{ErrInternalFailed, ErrInternal},
-		{ErrNotImplemented, ErrInternal},
+		{ErrNotImplemented, ErrFeatureNotImplemented},
 		{ErrDependencyCycle, ErrPipeline},
+		{ErrNotFoundSentinel, ErrNotFound},
 	}
 
 	for _, s := range sentinels {
@@ -226,5 +227,29 @@ func TestNestedGroup(t *testing.T) {
 
 	if g2.Len() != 3 {
 		t.Errorf("expected 3 errors (nested), got %d", g2.Len())
+	}
+}
+
+func TestSentinelRetryableDefaults(t *testing.T) {
+	if !IsRetryable(ErrTimedOut) {
+		t.Error("expected ErrTimedOut to be retryable by default")
+	}
+	if !IsRetryable(ErrRateLimited) {
+		t.Error("expected ErrRateLimited to be retryable by default")
+	}
+	if IsRetryable(ErrNotConnected) {
+		t.Error("expected ErrNotConnected to not be retryable by default")
+	}
+	if IsRetryable(ErrInternalFailed) {
+		t.Error("expected ErrInternalFailed to not be retryable by default")
+	}
+}
+
+func TestFeatureNotImplementedCode(t *testing.T) {
+	if !Is(ErrNotImplemented, ErrFeatureNotImplemented) {
+		t.Error("expected ErrNotImplemented to have ErrFeatureNotImplemented code")
+	}
+	if Is(ErrNotImplemented, ErrInternal) {
+		t.Error("expected ErrNotImplemented to not have ErrInternal code")
 	}
 }

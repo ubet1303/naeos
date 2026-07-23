@@ -172,3 +172,84 @@ func FuzzValidateModules(f *testing.F) {
 		}
 	})
 }
+
+func FuzzSlugify(f *testing.F) {
+	f.Add("Hello World")
+	f.Add("my-project_name.test")
+	f.Add("")
+	f.Add("   spaces   ")
+	f.Add("UPPERCASE")
+	f.Add("special!@#$%chars")
+	f.Add("already-slugified")
+	f.Add("äöü ñ café")
+	f.Add("123-numbers")
+	f.Add("--dashes--")
+
+	f.Fuzz(func(t *testing.T, input string) {
+		result := Slugify(input)
+		if result == "" {
+			t.Error("slugify should never return empty")
+		}
+		for _, c := range result {
+			if c < 'a' || c > 'z' {
+				if c < '0' || c > '9' {
+					if c != '-' {
+						t.Errorf("slug contains unexpected character: %c", c)
+					}
+				}
+			}
+		}
+	})
+}
+
+func FuzzCheckSpecVersion(f *testing.F) {
+	f.Add("0.3.0")
+	f.Add("0.1.0")
+	f.Add("1.0.0")
+	f.Add("")
+	f.Add("invalid")
+	f.Add("v2.0.0")
+	f.Add("0.0.1")
+
+	f.Fuzz(func(t *testing.T, input string) {
+		result := CheckSpecVersion(input)
+		if result == nil {
+			t.Fatal("result should not be nil")
+		}
+		if result.Message == "" {
+			t.Error("message should not be empty")
+		}
+	})
+}
+
+func FuzzDefaultProjectNameForInput(f *testing.F) {
+	f.Add("my cool project")
+	f.Add("hello-world")
+	f.Add("")
+	f.Add("   spaces everywhere   ")
+	f.Add("UPPERCASE PROJECT")
+	f.Add("project.with.dots")
+	f.Add("123-numeric-start")
+
+	f.Fuzz(func(t *testing.T, input string) {
+		result := DefaultProjectNameForInput(input)
+		if result == "" {
+			t.Error("should not return empty")
+		}
+	})
+}
+
+func FuzzDefaultModuleNameForProject(f *testing.F) {
+	f.Add("my-project")
+	f.Add("auth service")
+	f.Add("")
+	f.Add("UPPERCASE")
+	f.Add("project-with-many-modules")
+
+	f.Fuzz(func(t *testing.T, input string) {
+		result := DefaultModuleNameForProject(input)
+		if result == "" {
+			t.Error("should not return empty")
+		}
+	})
+}

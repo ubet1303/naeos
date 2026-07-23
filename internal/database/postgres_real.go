@@ -12,12 +12,11 @@ import (
 )
 
 type RealPostgreSQL struct {
-	db     *sql.DB
-	config *Config
+	*sqlDatabase
 }
 
 func NewRealPostgreSQL() *RealPostgreSQL {
-	return &RealPostgreSQL{}
+	return &RealPostgreSQL{sqlDatabase: &sqlDatabase{}}
 }
 
 func (p *RealPostgreSQL) Name() string {
@@ -69,327 +68,65 @@ func (p *RealPostgreSQL) Connect(config *Config) error {
 	return nil
 }
 
-func (p *RealPostgreSQL) defaultContext() (context.Context, context.CancelFunc) {
-	if p.config != nil && p.config.Timeout > 0 {
-		return context.WithTimeout(context.Background(), p.config.Timeout)
-	}
-	return context.WithTimeout(context.Background(), 30*time.Second)
-}
-
 func (p *RealPostgreSQL) Close() error {
-	if p.db != nil {
-		return p.db.Close()
-	}
-	return nil
+	return p.close()
 }
 
 func (p *RealPostgreSQL) Ping() error {
-	if p.db == nil {
-		return fmt.Errorf("database not connected; call Connect() with a valid config before performing operations")
-	}
-	ctx, cancel := p.defaultContext()
-	defer cancel()
-	return p.db.PingContext(ctx)
+	return p.ping()
 }
 
 func (p *RealPostgreSQL) Exec(query string, args ...any) (Result, error) {
-	ctx, cancel := p.defaultContext()
-	defer cancel()
-	return p.ExecContext(ctx, query, args...)
+	return p.exec(query, args...)
 }
 
 func (p *RealPostgreSQL) ExecContext(ctx context.Context, query string, args ...any) (Result, error) {
-	if p.db == nil {
-		return Result{}, fmt.Errorf("database not connected; call Connect() with a valid config before performing operations")
-	}
-	res, err := p.db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return Result{}, err
-	}
-	affected, _ := res.RowsAffected()
-	lastID, _ := res.LastInsertId()
-	return Result{RowsAffected: affected, LastInsertID: lastID}, nil
+	return p.execContext(ctx, query, args...)
 }
 
 func (p *RealPostgreSQL) Query(query string, args ...any) ([]Row, error) {
-	ctx, cancel := p.defaultContext()
-	defer cancel()
-	return p.QueryContext(ctx, query, args...)
+	return p.query(query, args...)
 }
 
 func (p *RealPostgreSQL) QueryContext(ctx context.Context, query string, args ...any) ([]Row, error) {
-	if p.db == nil {
-		return nil, fmt.Errorf("database not connected; call Connect() with a valid config before performing operations")
-	}
-	rows, err := p.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	var result []Row
-	for rows.Next() {
-		values := make([]any, len(columns))
-		valuePtrs := make([]any, len(columns))
-		for i := range values {
-			valuePtrs[i] = &values[i]
-		}
-		if err := rows.Scan(valuePtrs...); err != nil {
-			return nil, err
-		}
-		row := make(Row)
-		for i, col := range columns {
-			row[col] = values[i]
-		}
-		result = append(result, row)
-	}
-	return result, rows.Err()
+	return p.queryContext(ctx, query, args...)
 }
 
 func (p *RealPostgreSQL) QueryRow(query string, args ...any) (Row, error) {
-	ctx, cancel := p.defaultContext()
-	defer cancel()
-	return p.QueryRowContext(ctx, query, args...)
+	return p.queryRow(query, args...)
 }
 
 func (p *RealPostgreSQL) QueryRowContext(ctx context.Context, query string, args ...any) (Row, error) {
-	if p.db == nil {
-		return nil, fmt.Errorf("database not connected; call Connect() with a valid config before performing operations")
-	}
-	rows, err := p.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-		return Row{}, nil
-	}
-
-	values := make([]any, len(columns))
-	valuePtrs := make([]any, len(columns))
-	for i := range values {
-		valuePtrs[i] = &values[i]
-	}
-	if err := rows.Scan(valuePtrs...); err != nil {
-		return nil, err
-	}
-
-	row := make(Row)
-	for i, col := range columns {
-		row[col] = values[i]
-	}
-	return row, nil
+	return p.queryRowContext(ctx, query, args...)
 }
 
 func (p *RealPostgreSQL) Begin() (Transaction, error) {
-	ctx, cancel := p.defaultContext()
-	defer cancel()
-	return p.BeginTx(ctx)
+	return p.begin()
 }
 
 func (p *RealPostgreSQL) BeginTx(ctx context.Context) (Transaction, error) {
-	if p.db == nil {
-		return nil, fmt.Errorf("database not connected; call Connect() with a valid config before performing operations")
-	}
-	tx, err := p.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	return &RealPostgreSQLTx{tx: tx}, nil
+	return p.beginTx(ctx)
 }
 
 func (p *RealPostgreSQL) Migrate(migrations []Migration) error {
-	ctx, cancel := p.defaultContext()
-	defer cancel()
-	return p.MigrateContext(ctx, migrations)
+	return p.migrate(migrations)
 }
 
 func (p *RealPostgreSQL) MigrateContext(ctx context.Context, migrations []Migration) error {
-	if p.db == nil {
-		return fmt.Errorf("database not connected; call Connect() with a valid config before performing operations")
-	}
-
-	_, err := p.db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS _migrations (
-			version INTEGER PRIMARY KEY,
-			name TEXT NOT NULL,
-			down_sql TEXT,
-			applied_at TIMESTAMPTZ DEFAULT NOW()
-		)
-	`)
-	if err != nil {
-		return fmt.Errorf("create migrations table: %w", err)
-	}
-
-	for _, m := range migrations {
-		var count int
-		err := p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM _migrations WHERE version = $1", m.Version).Scan(&count)
-		if err != nil {
-			return fmt.Errorf("check migration %d: %w", m.Version, err)
-		}
-		if count > 0 {
-			continue
-		}
-
-		tx, err := p.db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("begin migration %d: %w", m.Version, err)
-		}
-
-		if _, err := tx.ExecContext(ctx, m.Up); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("apply migration %d: %w", m.Version, err)
-		}
-
-		if _, err := tx.ExecContext(ctx, "INSERT INTO _migrations (version, name, down_sql) VALUES ($1, $2, $3)", m.Version, m.Name, m.Down); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("record migration %d: %w", m.Version, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %d: %w", m.Version, err)
-		}
-	}
-
-	return nil
+	return p.migrateContext(ctx, migrations)
 }
 
 func (p *RealPostgreSQL) Rollback(version int) error {
-	ctx, cancel := p.defaultContext()
-	defer cancel()
-	return p.RollbackContext(ctx, version)
+	return p.rollback(version)
 }
 
 func (p *RealPostgreSQL) RollbackContext(ctx context.Context, version int) error {
-	if p.db == nil {
-		return fmt.Errorf("database not connected; call Connect() with a valid config before performing operations")
-	}
-
-	var migrations []Migration
-	rows, err := p.db.QueryContext(ctx, "SELECT version, name, down_sql FROM _migrations WHERE version > $1 ORDER BY version DESC", version)
-	if err != nil {
-		return fmt.Errorf("query migrations: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var m Migration
-		if err := rows.Scan(&m.Version, &m.Name, &m.Down); err != nil {
-			return err
-		}
-		migrations = append(migrations, m)
-	}
-
-	for _, m := range migrations {
-		tx, err := p.db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("begin rollback %d: %w", m.Version, err)
-		}
-
-		if m.Down != "" {
-			if _, err := tx.ExecContext(ctx, m.Down); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("execute down migration %d (%s): %w", m.Version, m.Name, err)
-			}
-		}
-
-		if _, err := tx.ExecContext(ctx, "DELETE FROM _migrations WHERE version = $1", m.Version); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("remove migration record %d: %w", m.Version, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit rollback %d: %w", m.Version, err)
-		}
-	}
-
-	return nil
+	return p.rollbackContext(ctx, version)
 }
 
 func (p *RealPostgreSQL) HealthCheck() error {
-	if p.db == nil {
-		return fmt.Errorf("database not connected; call Connect() with a valid config before performing operations")
-	}
-	ctx, cancel := p.defaultContext()
-	defer cancel()
-	return p.db.PingContext(ctx)
+	return p.healthCheck()
 }
 
-type RealPostgreSQLTx struct {
-	tx *sql.Tx
-}
-
-func (t *RealPostgreSQLTx) Exec(query string, args ...any) (Result, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	return t.ExecContext(ctx, query, args...)
-}
-
-func (t *RealPostgreSQLTx) ExecContext(ctx context.Context, query string, args ...any) (Result, error) {
-	res, err := t.tx.ExecContext(ctx, query, args...)
-	if err != nil {
-		return Result{}, err
-	}
-	affected, _ := res.RowsAffected()
-	lastID, _ := res.LastInsertId()
-	return Result{RowsAffected: affected, LastInsertID: lastID}, nil
-}
-
-func (t *RealPostgreSQLTx) Query(query string, args ...any) ([]Row, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	return t.QueryContext(ctx, query, args...)
-}
-
-func (t *RealPostgreSQLTx) QueryContext(ctx context.Context, query string, args ...any) ([]Row, error) {
-	rows, err := t.tx.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	var result []Row
-	for rows.Next() {
-		values := make([]any, len(columns))
-		valuePtrs := make([]any, len(columns))
-		for i := range values {
-			valuePtrs[i] = &values[i]
-		}
-		if err := rows.Scan(valuePtrs...); err != nil {
-			return nil, err
-		}
-		row := make(Row)
-		for i, col := range columns {
-			row[col] = values[i]
-		}
-		result = append(result, row)
-	}
-	return result, rows.Err()
-}
-
-func (t *RealPostgreSQLTx) Commit() error {
-	return t.tx.Commit()
-}
-
-func (t *RealPostgreSQLTx) Rollback() error {
-	return t.tx.Rollback()
-}
+// Type alias for backward compatibility.
+type RealPostgreSQLTx = sqlTx

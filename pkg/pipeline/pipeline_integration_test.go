@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/NAEOS-foundation/naeos/internal/compiler"
+	"github.com/NAEOS-foundation/naeos/internal/compiler/adapters"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
 )
 
@@ -871,5 +873,184 @@ services:
 	}
 	if result.Graph.EdgeCount() == 0 {
 		t.Error("expected non-empty graph edges")
+	}
+}
+
+func TestIntegrationSpecToCompile(t *testing.T) {
+	t.Parallel()
+	specData, err := os.ReadFile("../../examples/spec-full.yaml")
+	if err != nil {
+		t.Fatalf("read spec-full.yaml: %v", err)
+	}
+	p, err := New(Config{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	result, err := p.Run(string(specData))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.NEIR == nil || result.NEIR.Project == nil {
+		t.Fatal("expected NEIR with project")
+	}
+
+	c := compiler.New()
+	c.Register(adapters.NewCopilotAdapter(nil))
+	c.Register(adapters.NewClaudeAdapter(nil))
+	c.Register(adapters.NewCursorAdapter(nil))
+	c.Register(adapters.NewWindsurfAdapter(nil))
+	c.Register(adapters.NewGeminiAdapter(nil))
+	c.Register(adapters.NewCodexAdapter(nil))
+	c.Register(adapters.NewOpenCodeAdapter(nil))
+
+	targets := c.Targets()
+	if len(targets) < 2 {
+		t.Fatalf("expected at least 2 compiler targets, got %d", len(targets))
+	}
+
+	for _, target := range targets {
+		output, err := c.Compile(result.NEIR, target)
+		if err != nil {
+			t.Fatalf("Compile(%s): %v", target, err)
+		}
+		if output == nil {
+			t.Fatalf("Compile(%s) returned nil output", target)
+		}
+		if len(output.Files) == 0 {
+			t.Errorf("Compile(%s) produced no files", target)
+		}
+	}
+
+	all := c.CompileAll(result.NEIR)
+	if len(all) != len(targets) {
+		t.Errorf("CompileAll returned %d results, want %d", len(all), len(targets))
+	}
+	for target, out := range all {
+		if out == nil {
+			t.Errorf("CompileAll[%s] is nil", target)
+		}
+	}
+}
+
+func TestIntegrationSpecToCompileWithLanguages(t *testing.T) {
+	t.Parallel()
+	spec := `project: compile-lang-test
+modules:
+  - name: core
+    path: ./internal/core
+  - name: api
+    path: ./internal/api
+    dependencies:
+      - core
+services:
+  - name: web
+    kind: http
+    port: 8080
+architecture:
+  pattern: hexagonal
+generation:
+  languages:
+    - go
+    - typescript
+`
+	p, err := New(Config{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	result, err := p.Run(spec)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.NEIR == nil {
+		t.Fatal("expected NEIR")
+	}
+	if len(result.NEIR.Modules) != 2 {
+		t.Errorf("Modules = %d, want 2", len(result.NEIR.Modules))
+	}
+	if len(result.NEIR.Services) != 1 {
+		t.Errorf("Services = %d, want 1", len(result.NEIR.Services))
+	}
+	if result.NEIR.Generation == nil || len(result.NEIR.Generation.Languages) != 2 {
+		t.Errorf("Languages = %v, want [go typescript]", result.NEIR.Generation.Languages)
+	}
+
+	c := compiler.New()
+	c.Register(adapters.NewCopilotAdapter(nil))
+	c.Register(adapters.NewClaudeAdapter(nil))
+
+	_, err = c.Compile(result.NEIR, compiler.TargetCopilot)
+	if err != nil {
+		t.Fatalf("Compile(Copilot): %v", err)
+	}
+
+	_, err = c.Compile(result.NEIR, compiler.TargetClaude)
+	if err != nil {
+		t.Fatalf("Compile(Claude): %v", err)
+	}
+}
+
+func TestIntegrationSpecToCompileMinimal(t *testing.T) {
+	t.Parallel()
+	p, err := New(Config{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	result, err := p.Run("project: minimal-compile-test")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.NEIR == nil || result.NEIR.Project == nil {
+		t.Fatal("expected NEIR")
+	}
+
+	c := compiler.New()
+	c.Register(adapters.NewCopilotAdapter(nil))
+
+	output, err := c.Compile(result.NEIR, compiler.TargetCopilot)
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	if output == nil {
+		t.Fatal("expected non-nil output")
+	}
+	if len(output.Files) == 0 {
+		t.Error("expected at least one file")
+	}
+}
+
+func TestIntegrationSpecCompileRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	specData, err := os.ReadFile("../../examples/spec-microservice-event.yaml")
+	if err != nil {
+		t.Fatalf("read spec-microservice-event.yaml: %v", err)
+	}
+	p, err := New(Config{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	result, err := p.Run(string(specData))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.NEIR == nil || result.NEIR.Project == nil {
+		t.Fatal("expected NEIR")
+	}
+	if result.NEIR.Project.Name != "order-processing-system" {
+		t.Errorf("Project.Name = %q, want %q", result.NEIR.Project.Name, "order-processing-system")
+	}
+
+	c := compiler.New()
+	c.Register(adapters.NewCopilotAdapter(nil))
+	c.Register(adapters.NewClaudeAdapter(nil))
+	c.Register(adapters.NewCursorAdapter(nil))
+	c.Register(adapters.NewWindsurfAdapter(nil))
+	c.Register(adapters.NewGeminiAdapter(nil))
+	c.Register(adapters.NewCodexAdapter(nil))
+	c.Register(adapters.NewOpenCodeAdapter(nil))
+
+	all := c.CompileAll(result.NEIR)
+	if len(all) < 5 {
+		t.Errorf("CompileAll returned %d results, want >= 5", len(all))
 	}
 }

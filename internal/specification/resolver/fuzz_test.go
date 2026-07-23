@@ -148,3 +148,62 @@ func FuzzCrossValidateServices(f *testing.F) {
 		}
 	})
 }
+
+func FuzzResolveReferences(f *testing.F) {
+	f.Add("target", "hello")
+	f.Add("ref_key", "${ref:target.name}")
+	f.Add("plain", "no refs here")
+	f.Add("nested", "${ref:missing.field}")
+	f.Add("multi", "${ref:a.x}-${ref:b.y}")
+
+	f.Fuzz(func(t *testing.T, key, value string) {
+		if key == "" || key == "target" {
+			return
+		}
+		context := map[string]any{
+			"target": map[string]any{
+				"name": value,
+			},
+			key: value,
+		}
+		result := ResolveReferences(context)
+		if result == nil {
+			t.Fatal("result should not be nil")
+		}
+		if len(result) != 2 {
+			t.Errorf("expected 2 entries, got %d", len(result))
+		}
+	})
+}
+
+func FuzzDefaultResolverResolve(f *testing.F) {
+	f.Add("api", "http", "8080", "core")
+	f.Add("worker", "grpc", "9090", "")
+	f.Add("", "", "", "")
+
+	f.Fuzz(func(t *testing.T, modName, svcKind, portStr, depName string) {
+		norm := map[string]any{
+			"modules": []map[string]any{
+				{"name": modName, "path": "./" + modName},
+			},
+			"services": []map[string]any{
+				{"name": modName, "kind": svcKind, "port": portStr},
+			},
+		}
+		if depName != "" {
+			norm["modules"] = append(norm["modules"].([]map[string]any),
+				map[string]any{"name": depName, "path": "./" + depName})
+		}
+		resolver := NewResolver()
+		resolved, err := resolver.Resolve(norm)
+		if err != nil {
+			return
+		}
+		if resolved == nil {
+			t.Fatal("resolved should not be nil")
+		}
+		if resolved.Context == nil {
+			t.Fatal("context should not be nil")
+		}
+	})
+}
