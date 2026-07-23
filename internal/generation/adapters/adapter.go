@@ -1,6 +1,8 @@
 package adapters
 
 import (
+	"sync"
+
 	"github.com/NAEOS-foundation/naeos/internal/generation/engine"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
@@ -61,21 +63,30 @@ func All() map[language.Language][]OutputAdapter {
 
 func GenerateForNEIR(neir *model.NEIR) ([]engine.Artifact, error) {
 	if neir == nil {
-		return nil, nil // Nil input — nothing to generate, return empty result
+		return nil, nil
 	}
 
 	languages := resolveLanguages(neir)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 	var allArtifacts []engine.Artifact
 
 	for _, lang := range languages {
-		adapter, ok := Get(lang)
-		if !ok {
-			continue
-		}
-		artifacts := generateWithAdapter(adapter, neir)
-		allArtifacts = append(allArtifacts, artifacts...)
+		wg.Add(1)
+		go func(lang language.Language) {
+			defer wg.Done()
+			adapter, ok := Get(lang)
+			if !ok {
+				return
+			}
+			artifacts := generateWithAdapter(adapter, neir)
+			mu.Lock()
+			allArtifacts = append(allArtifacts, artifacts...)
+			mu.Unlock()
+		}(lang)
 	}
 
+	wg.Wait()
 	return allArtifacts, nil
 }
 

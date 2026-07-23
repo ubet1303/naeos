@@ -367,11 +367,7 @@ func (m *Manager) Execute(ctx context.Context, name, action string, params map[s
 			}
 		} else {
 			return nil, fmt.Errorf("plugin %q not loaded; enable lazy loading or run 'naeos plugin load %s'", name, name)
-		return nil, 	naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %s not loaded after lazy load", name), nil)
 		}
-	} else {
-		return nil, 	naeoserr.Wrap(naeoserr.ErrPlugin, fmt.Sprintf("plugin %s not loaded", name), nil)
-	}
 	}
 	if err := m.sandbox.CheckRateLimit(name); err != nil {
 		return nil, err

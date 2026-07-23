@@ -9,7 +9,7 @@ import (
 	naeoserr "github.com/NAEOS-foundation/naeos/internal/errors"
 )
 
-func TestRealRedisNotConnected(t *testing.T) {
+func TestRealRedisNotConnectedErrIs(t *testing.T) {
 	b := NewRealRedis()
 
 	if err := b.Ping(); !errors.Is(err, naeoserr.ErrNotConnected) {
@@ -23,7 +23,7 @@ func TestRealRedisNotConnected(t *testing.T) {
 	}
 }
 
-func TestRealRabbitMQNotConnected(t *testing.T) {
+func TestRealRabbitMQNotConnectedErrIs(t *testing.T) {
 	b := NewRealRabbitMQ()
 
 	if err := b.Ping(); err == nil {
@@ -51,7 +51,7 @@ func TestRealNATSNotConnectedExt(t *testing.T) {
 	}
 }
 
-func TestRealKafkaNotConnected(t *testing.T) {
+func TestRealKafkaNotConnectedErrIs(t *testing.T) {
 	b := NewRealKafka()
 
 	if err := b.Ping(); !errors.Is(err, naeoserr.ErrNotConnected) {
@@ -65,14 +65,14 @@ func TestRealKafkaNotConnected(t *testing.T) {
 	}
 }
 
-func TestRealRedisName(t *testing.T) {
+func TestRealRedisNameExt(t *testing.T) {
 	b := NewRealRedis()
 	if b.Name() != "redis" {
 		t.Errorf("expected name 'redis', got %s", b.Name())
 	}
 }
 
-func TestRealRabbitMQName(t *testing.T) {
+func TestRealRabbitMQNameExt(t *testing.T) {
 	b := NewRealRabbitMQ()
 	if b.Name() != "rabbitmq" {
 		t.Errorf("expected name 'rabbitmq', got %s", b.Name())
@@ -86,7 +86,7 @@ func TestRealNATSNameExt(t *testing.T) {
 	}
 }
 
-func TestRealKafkaName(t *testing.T) {
+func TestRealKafkaNameExt(t *testing.T) {
 	b := NewRealKafka()
 	if b.Name() != "kafka" {
 		t.Errorf("expected name 'kafka', got %s", b.Name())

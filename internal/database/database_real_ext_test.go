@@ -22,7 +22,7 @@ func TestRealPostgreSQLCloseNotConnected(t *testing.T) {
 	}
 }
 
-func TestRealMySQLDefaultContextWithTimeout(t *testing.T) {
+func TestRealMySQLDefaultContextWithTimeoutExt(t *testing.T) {
 	db := NewRealMySQL()
 	db.config = &Config{Timeout: 5 * time.Second}
 	ctx, cancel := db.defaultContext()
@@ -32,7 +32,7 @@ func TestRealMySQLDefaultContextWithTimeout(t *testing.T) {
 	}
 }
 
-func TestRealMySQLDefaultContextWithoutTimeout(t *testing.T) {
+func TestRealMySQLDefaultContextWithoutTimeoutExt(t *testing.T) {
 	db := NewRealMySQL()
 	db.config = &Config{}
 	ctx, cancel := db.defaultContext()
@@ -42,7 +42,7 @@ func TestRealMySQLDefaultContextWithoutTimeout(t *testing.T) {
 	}
 }
 
-func TestRealMySQLDefaultContextNilConfig(t *testing.T) {
+func TestRealMySQLDefaultContextNilConfigExt(t *testing.T) {
 	db := NewRealMySQL()
 	ctx, cancel := db.defaultContext()
 	defer cancel()
@@ -51,7 +51,7 @@ func TestRealMySQLDefaultContextNilConfig(t *testing.T) {
 	}
 }
 
-func TestRealPostgreSQLDefaultContextWithTimeout(t *testing.T) {
+func TestRealPostgreSQLDefaultContextWithTimeoutExt(t *testing.T) {
 	db := NewRealPostgreSQL()
 	db.config = &Config{Timeout: 5 * time.Second}
 	ctx, cancel := db.defaultContext()
@@ -61,7 +61,7 @@ func TestRealPostgreSQLDefaultContextWithTimeout(t *testing.T) {
 	}
 }
 
-func TestRealPostgreSQLDefaultContextWithoutTimeout(t *testing.T) {
+func TestRealPostgreSQLDefaultContextWithoutTimeoutExt(t *testing.T) {
 	db := NewRealPostgreSQL()
 	db.config = &Config{}
 	ctx, cancel := db.defaultContext()
@@ -71,7 +71,7 @@ func TestRealPostgreSQLDefaultContextWithoutTimeout(t *testing.T) {
 	}
 }
 
-func TestRealPostgreSQLDefaultContextNilConfig(t *testing.T) {
+func TestRealPostgreSQLDefaultContextNilConfigExt(t *testing.T) {
 	db := NewRealPostgreSQL()
 	ctx, cancel := db.defaultContext()
 	defer cancel()
@@ -350,7 +350,7 @@ func TestRealSQLiteTxRollback(t *testing.T) {
 	}
 }
 
-func TestRealSQLiteQueryContextError(t *testing.T) {
+func TestRealSQLiteQueryContextErrorExt(t *testing.T) {
 	db := NewRealSQLite()
 	if err := db.Connect(&Config{Database: ":memory:"}); err != nil {
 		t.Fatalf("connect: %v", err)
@@ -363,7 +363,7 @@ func TestRealSQLiteQueryContextError(t *testing.T) {
 	}
 }
 
-func TestRealSQLiteQueryRowContextError(t *testing.T) {
+func TestRealSQLiteQueryRowContextErrorExt(t *testing.T) {
 	db := NewRealSQLite()
 	if err := db.Connect(&Config{Database: ":memory:"}); err != nil {
 		t.Fatalf("connect: %v", err)
@@ -376,7 +376,7 @@ func TestRealSQLiteQueryRowContextError(t *testing.T) {
 	}
 }
 
-func TestRealSQLiteExecContextError(t *testing.T) {
+func TestRealSQLiteExecContextErrorExt(t *testing.T) {
 	db := NewRealSQLite()
 	if err := db.Connect(&Config{Database: ":memory:"}); err != nil {
 		t.Fatalf("connect: %v", err)
@@ -468,7 +468,7 @@ func TestRealSQLiteRollbackContextNotConnected(t *testing.T) {
 	}
 }
 
-func TestRealSQLiteName(t *testing.T) {
+func TestRealSQLiteNameExt(t *testing.T) {
 	db := NewRealSQLite()
 	if db.Name() != "sqlite" {
 		t.Errorf("expected name 'sqlite', got %s", db.Name())
@@ -488,7 +488,7 @@ func TestRealSQLiteBegin(t *testing.T) {
 	}
 }
 
-func TestRealSQLiteHealthCheck(t *testing.T) {
+func TestRealSQLiteHealthCheckExt(t *testing.T) {
 	db := NewRealSQLite()
 	if err := db.Connect(&Config{Database: ":memory:"}); err != nil {
 		t.Fatalf("connect: %v", err)

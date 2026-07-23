@@ -359,7 +359,7 @@ func (c *mockCache) HashSpec(spec string) string {
 	return spec
 }
 
-func TestPipelineCacheHit(t *testing.T) {
+func TestPipelineCacheHitValidate(t *testing.T) {
 	cache := newMockCache()
 	p, err := New(Config{Cache: cache})
 	if err != nil {

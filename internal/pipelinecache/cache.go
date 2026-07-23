@@ -19,9 +19,17 @@ type CacheEntry struct {
 	HitCount  int              `json:"hit_count"`
 }
 
+type StageEntry struct {
+	Stage     string    `json:"stage"`
+	Key       string    `json:"key"`
+	Data      []byte    `json:"data"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 type Cache struct {
 	dir     string
 	entries map[string]*CacheEntry
+	stages  map[string]*StageEntry
 	maxSize int
 	maxAge  time.Duration
 	mu      sync.RWMutex
@@ -34,6 +42,7 @@ func New(dir string, maxSize int) *Cache {
 	c := &Cache{
 		dir:     dir,
 		entries: make(map[string]*CacheEntry),
+		stages:  make(map[string]*StageEntry),
 		maxSize: maxSize,
 	}
 	c.loadFromDisk()
@@ -203,4 +212,48 @@ func (c *Cache) saveToDisk(key string) {
 	}
 
 	_ = os.WriteFile(filepath.Join(c.dir, key+".json"), data, 0o600)
+}
+
+func (c *Cache) StageKey(specHash, stage string) string {
+	h := sha256.Sum256([]byte(specHash + ":" + stage))
+	return fmt.Sprintf("%x", h)
+}
+
+func (c *Cache) GetStage(specHash, stage string) ([]byte, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	key := c.StageKey(specHash, stage)
+	entry, ok := c.stages[key]
+	if !ok {
+		return nil, false
+	}
+
+	if c.maxAge > 0 && time.Since(entry.Timestamp) > c.maxAge {
+		delete(c.stages, key)
+		return nil, false
+	}
+
+	return entry.Data, true
+}
+
+func (c *Cache) SetStage(specHash, stage string, data []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	key := c.StageKey(specHash, stage)
+	c.stages[key] = &StageEntry{
+		Stage:     stage,
+		Key:       key,
+		Data:      data,
+		Timestamp: time.Now(),
+	}
+}
+
+func (c *Cache) InvalidateStage(specHash, stage string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	key := c.StageKey(specHash, stage)
+	delete(c.stages, key)
 }
