@@ -2,6 +2,8 @@
 title: Referensi API
 description: Dokumentasi API interaktif untuk REST API NAEOS.
 weight: 17
+aliases:
+  - /id/docs/api/
 ---
 
 REST API NAEOS memungkinkan Anda berinteraksi dengan runtime NAEOS secara programatis. Halaman ini menyediakan referensi interaktif yang dihasilkan dari spesifikasi OpenAPI 3.0.

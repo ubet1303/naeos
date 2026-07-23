@@ -2,6 +2,8 @@
 title: API Reference
 description: Interactive API documentation for the NAEOS REST API.
 weight: 17
+aliases:
+  - /docs/api/
 ---
 
 The NAEOS REST API allows you to interact with the NAEOS runtime programmatically. This page provides an interactive reference generated from the OpenAPI 3.0 specification.
